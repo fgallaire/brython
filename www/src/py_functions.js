@@ -387,12 +387,12 @@ function_funcs.__annotations___get = function(self) {
     $B.check_infos(self)
     if (self.__annotations__ !== undefined) {
         return self.__annotations__
+    } else if (typeof self.__annotate__ === 'function') {
+        return self.__annotations__ = self.__annotate__(1)
     } else {
-        if (self.__annotate__ === _b_.None) {
-            return self.__annotations__ = $B.empty_dict()
-        } else {
-            return self.__annotations__ = self.__annotate__(1)
-        }
+        // A function with no annotations has no __annotate__ (None or absent);
+        // CPython returns an empty dict.
+        return self.__annotations__ = $B.empty_dict()
     }
 }
 
