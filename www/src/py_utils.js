@@ -1219,6 +1219,11 @@ $B.call_attr = function(obj, attr, inum, ...args) {
                 Object.hasOwn(klass.tp_funcs, attr)){
             var func = klass.tp_funcs[attr]
             if ($B.get_class(func) === $B.builtin_method) {
+                // an instance attribute overrides a non-data descriptor (method)
+                var ov = $B.search_in_dict(obj, attr, $B.NULL)
+                if (ov !== $B.NULL) {
+                    return $B.$call_with_position(ov, inum, ...args)
+                }
                 try {
                     return func(obj, ...args)
                 } catch(err) {
