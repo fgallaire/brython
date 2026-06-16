@@ -793,8 +793,16 @@ $B.$getattr = function(obj, attr, _default) {
             var func = $B.get_from_dict(klass, attr, $B.NULL)
             if (func !== $B.NULL) {
                 var res = $B.NULL
+                // A non-data descriptor (method) yields to an instance attribute
+                // of the same name (CPython __getattribute__ precedence); data
+                // descriptors (getset/member) still win.
+                var inst_ov
                 switch (func.ob_type) {
                     case $B.builtin_method:
+                        inst_ov = $B.search_in_dict(obj, attr, $B.NULL)
+                        if (inst_ov !== $B.NULL) {
+                            return inst_ov
+                        }
                         res = function() {
                             return func(obj, ...arguments)
                         }
@@ -806,9 +814,17 @@ $B.$getattr = function(obj, attr, _default) {
                         return obj[func.d_member.attr]
                     case $B.method_descriptor:
                     case $B.wrapper_descriptor:
+                        inst_ov = $B.search_in_dict(obj, attr, $B.NULL)
+                        if (inst_ov !== $B.NULL) {
+                            return inst_ov
+                        }
                         return func.ob_type.tp_descr_get(func, obj, klass)
                     case $B.builtin_function_or_method:
                     case _b_.staticmethod:
+                        inst_ov = $B.search_in_dict(obj, attr, $B.NULL)
+                        if (inst_ov !== $B.NULL) {
+                            return inst_ov
+                        }
                         return func
                     default:
                         // console.log('builtin type', func, func.ob_type)
