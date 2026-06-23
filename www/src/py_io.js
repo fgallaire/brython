@@ -376,21 +376,40 @@ function _bufferediobase_readinto_generic(_self, buffer, readinto1) {
             `read-write bytes-like object, not ${$B.class_name(buffer)}`)
     }
 
+    // Fill the buffer's raw bytes, like CPython's buffer-protocol readinto.
+    // A typed buffer such as array('I') holds len*itemsize bytes, not its
+    // element count, so request that many.
+    var itemsize = $B.$getattr(buffer, 'itemsize', null)
+    var nbytes = (itemsize !== null && itemsize !== _b_.None) ?
+        _b_.len(buffer) * itemsize : _b_.len(buffer)
+
     var attr = readinto1 ? "read1" : "read"
-    data = $B.$call($B.$getattr(_self, attr), _b_.len(buffer))
+    data = $B.$call($B.$getattr(_self, attr), nbytes)
 
     if (! $B.is_bytes(data)) {
         $B.RAISE(_b_.TypeError, "read() should return bytes")
     }
 
     len = _b_.bytes.mp_length(data)
-    if (len > _b_.len(buffer)) {
+    if (len > nbytes) {
         $B.RAISE(_b_.ValueError,
-            "read() returned too much data: "
-            `${_b_.len(buffer)} bytes requested, ${len} returned`)
+            "read() returned too much data: " +
+            `${nbytes} bytes requested, ${len} returned`)
     }
-    var setitem = $B.search_in_mro($B.get_class(buffer), '__setitem__')
-    $B.$call(setitem, buffer, _b_.slice.$factory(0, len), data)
+    var klass = $B.get_class(buffer)
+    var setitem = $B.search_in_mro(klass, '__setitem__')
+    try {
+        $B.$call(setitem, buffer, _b_.slice.$factory(0, len), data)
+    } catch (err) {
+        // a typed buffer (array.array) rejects a raw byte slice — decode the
+        // bytes into a same-type temp and copy element-wise
+        var tmp = $B.$call(klass, $B.$getattr(buffer, 'typecode'))
+        $B.$call($B.$getattr(tmp, 'frombytes'), data)
+        var ne = Math.floor(len / itemsize)
+        for (var i = 0; i < ne; i++) {
+            $B.$call(setitem, buffer, i, $B.$getitem(tmp, i))
+        }
+    }
 
     return len
 }
