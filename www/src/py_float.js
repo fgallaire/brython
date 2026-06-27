@@ -716,6 +716,12 @@ float.$factory = function(value) {
 
 /* float start */
 _b_.float.tp_richcompare = function(self, other, op) {
+    // Only compare directly against int and float; for anything else (e.g. a
+    // Decimal) return NotImplemented so its reflected comparison runs, instead
+    // of coercing it to a float here and losing precision.
+    if (! $B.$isinstance(other, [_b_.int, _b_.float])) {
+        return _b_.NotImplemented
+    }
     var other_type = $B.get_class(other)
     var other_nb_float = $B.search_slot(other_type, 'nb_float', $B.NULL)
     if (other_nb_float === $B.NULL) {
