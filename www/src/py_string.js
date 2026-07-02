@@ -1947,7 +1947,30 @@ str_funcs.__getnewargs__ = function(self) {
 }
 
 str_funcs.__sizeof__ = function(self) {
-    return 62
+    // CPython's unicode_sizeof_impl numbers on a 32-bit platform (the
+    // relevant reference for Brython-in-wasm comparisons, and what
+    // CPython-in-wasm reports): an ASCII string is a PyASCIIObject
+    // (20 bytes) + len + 1; a compact non-ASCII string is a
+    // PyCompactUnicodeObject (28 bytes) + (len + 1) * kind, kind being
+    // the narrowest of latin-1 / UCS-2 / UCS-4 and len in code points.
+    var s = to_string(self)
+    var len = 0,
+        maxchar = 0
+    for (var i = 0; i < s.length; i++) {
+        var c = s.codePointAt(i)
+        if (c > 0xFFFF) {
+            i++
+        }
+        if (c > maxchar) {
+            maxchar = c
+        }
+        len++
+    }
+    if (maxchar < 0x80) {
+        return 20 + len + 1
+    }
+    var kind = maxchar < 0x100 ? 1 : maxchar < 0x10000 ? 2 : 4
+    return 28 + (len + 1) * kind
 }
 
 str_funcs.capitalize = function(self) {
