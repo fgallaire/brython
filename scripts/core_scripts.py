@@ -51,3 +51,24 @@ core_scripts = [
 
 
 ]
+
+# The Python-to-JavaScript parsing chain. A page that only runs code compiled
+# ahead of time — precompiled modules in $B.precompiled — never reaches any of
+# it, so `make_dist.py --runtime-only` leaves these out.
+#
+# `python_tokenizer` and `py_tokens` stay: str.isidentifier() and friends call
+# $B.is_XID_Start / is_XID_Continue / in_unicode_category. `ast_to_js` stays too,
+# because it holds the name resolution the generated code calls at run time.
+#
+# What is lost: exec(), eval(), compile(), the ast module, importing a .py from
+# source, and the caret line of a traceback (PEP 657), which re-parses the source.
+compiler_scripts = [
+    'symtable',
+    'action_helpers',
+    'string_parser',
+    'number_parser',
+    'python_parser',
+    'pegen',
+    'gen_parse'
+]
+

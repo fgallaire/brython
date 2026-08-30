@@ -10,7 +10,7 @@ import shutil
 import javascript_minifier
 from version import version, implementation
 from directories import src_dir, root_dir
-from core_scripts import core_scripts
+from core_scripts import core_scripts, compiler_scripts
 
 cpython_version = sys.version_info
 if cpython_version[0] != version[0] or \
@@ -39,6 +39,10 @@ def run():
 // github.com/brython-dev/brython
 """
 
+    # Without the Python parsing chain, for a page that only runs code compiled
+    # ahead of time. Nothing else is produced in that mode.
+    runtime_only = '--runtime-only' in sys.argv
+
     res_no_static = res # same but without static stdlib files
     src_size = 0
 
@@ -50,40 +54,43 @@ def run():
         except:
             print('error in', fname)
             raise
-        res += mini
         if fname == 'stdlib_paths':
+            res += mini
             res_no_static += "__BRYTHON__.stdlib = {}\n"
-        else:
+        elif not (runtime_only and fname in compiler_scripts):
+            res += mini
             res_no_static += mini
 
 
-    with open(os.path.join(src_dir, 'brython.js'), 'w', newline="\n") as out:
+    target = 'brython_runtime.js' if runtime_only else 'brython.js'
+    with open(os.path.join(src_dir, target), 'w', newline="\n") as out:
         out.write(res)
 
-    with open(os.path.join(src_dir, 'brython_no_static.js'), 'w', newline="\n") as out:
-        out.write(res_no_static)
+    if not runtime_only:
+        with open(os.path.join(src_dir, 'brython_no_static.js'), 'w', newline="\n") as out:
+            out.write(res_no_static)
 
-    print(('size : originals %s compact %s gain %.2f' %
-          (src_size, len(res), 100 * (src_size - len(res)) / src_size)))
+        print(('size : originals %s compact %s gain %.2f' %
+              (src_size, len(res), 100 * (src_size - len(res)) / src_size)))
 
-    sys.path.append("scripts")
+        sys.path.append("scripts")
 
-    try:
-        import make_VFS
-    except ImportError:
-        print("Cannot find make_VFS, so we won't make brython_stdlib.js.js")
-        make_VFS = None
-        sys.exit()
+        try:
+            import make_VFS
+        except ImportError:
+            print("Cannot find make_VFS, so we won't make brython_stdlib.js.js")
+            make_VFS = None
+            sys.exit()
 
-    make_VFS.process(os.path.join(src_dir, 'brython_stdlib.js'))
+        make_VFS.process(os.path.join(src_dir, 'brython_stdlib.js'))
 
-    # also copy to setup/brython/data
-    setup_data_dir = os.path.join(root_dir, 'setup', 'brython', 'data')
-    shutil.copyfile(os.path.join(src_dir, 'brython_no_static.js'),
-        os.path.join(setup_data_dir, 'brython.js'))
-    for filename in ['brython_stdlib.js', 'unicode.txt']:
-        shutil.copyfile(os.path.join(src_dir, filename),
-            os.path.join(setup_data_dir, filename))
+        # also copy to setup/brython/data
+        setup_data_dir = os.path.join(root_dir, 'setup', 'brython', 'data')
+        shutil.copyfile(os.path.join(src_dir, 'brython_no_static.js'),
+            os.path.join(setup_data_dir, 'brython.js'))
+        for filename in ['brython_stdlib.js', 'unicode.txt']:
+            shutil.copyfile(os.path.join(src_dir, filename),
+                os.path.join(setup_data_dir, filename))
 
 
 if __name__ == "__main__":
