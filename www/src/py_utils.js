@@ -1558,13 +1558,31 @@ $B.leave_frame = function(arg) {
     }
     var frame = $B.frame_obj.frame
     if (frame.$coroutine) {
-        if (! frame.$coroutine.$sent) {
-            var cname = frame.$coroutine.$func.$function_infos[$B.func_attrs.__name__]
-            var message = $B.EXC(_b_.RuntimeWarning,
-                `coroutine '${cname}' was never awaited`)
-            message.lineno = frame.$coroutine.$lineno
-            $B.module_getattr($B.imported._warnings, 'warn')(message)
-        }
+        // Asked one turn later, not here: a coroutine that leaves the frame it
+        // was created in has not been dropped. In "def make(): return fetch()"
+        // the caller is the one who awaits it, and it cannot have been started
+        // at this point. CPython asks when the coroutine is finalized.
+        //
+        // The frames stack is restored for the call, the way $B.promise does it
+        // for a resolved coroutine: warnings.warn reads the stack.
+        var pending = frame.$coroutine,
+            stack = $B.frame_obj
+        queueMicrotask(function() {
+            if (pending.$sent) {
+                return
+            }
+            var cname = pending.$func.$function_infos[$B.func_attrs.__name__],
+                current = $B.frame_obj
+            $B.frame_obj = stack
+            try {
+                var message = $B.EXC(_b_.RuntimeWarning,
+                    `coroutine '${cname}' was never awaited`)
+                message.lineno = pending.$lineno
+                $B.module_getattr($B.imported._warnings, 'warn')(message)
+            } finally {
+                $B.frame_obj = current
+            }
+        })
     }
     $B.frame_obj = $B.frame_obj.prev
     // For generators in locals, if their execution frame has context
