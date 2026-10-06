@@ -896,7 +896,10 @@ list_funcs.reverse = function(self) {
 }
 
 list_funcs.sort = function(self) {
-    var $ = $B.args("sort", 1, {self: null}, arguments, null, null, "kw")
+    var $ = $B.args("sort", 1, {self: null}, arguments, null, "args", "kw")
+    if ($.args.length > 0) {
+        $B.RAISE(_b_.TypeError, "sort() takes no positional arguments")
+    }
 
     check_not_tuple(self, "sort")
     var func = _b_.None,

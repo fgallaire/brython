@@ -3502,6 +3502,10 @@ assert list(deque_2934(iterable=[1, 2])) == [1, 2]
 assert deque_2934().maxlen is None
 assert_raises(ValueError, deque_2934, [], -1)
 
+# list.sort() takes no positional argument
+assert_raises(TypeError, [].sort, 1,
+    msg="sort() takes no positional arguments")
+
 # ==========================================
 # Finally, report that all tests have passed
 # ==========================================
