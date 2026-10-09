@@ -387,6 +387,23 @@ assert eval("0j") == 0j
 x = 19
 assert x.as_integer_ratio() == (19, 1)
 
+# conjugate() of an int or a float is the number itself, as the exact type
+class IntSub(int):
+    pass
+
+class FloatSub(float):
+    pass
+
+assert (3).conjugate() == 3
+assert (2 ** 70).conjugate() == 2 ** 70
+assert True.conjugate() == 1
+assert type(True.conjugate()) is int
+assert type(IntSub(4).conjugate()) is int
+assert IntSub(4).conjugate() == 4
+assert (0.25).conjugate() == 0.25
+assert type(FloatSub(0.5).conjugate()) is float
+assert FloatSub(0.5).conjugate() == 0.5
+
 # & for long integers
 for v1, v2 in [
     [1159881389885703599, 175],
