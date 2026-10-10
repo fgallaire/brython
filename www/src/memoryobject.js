@@ -142,12 +142,34 @@ _b_.memoryview.tp_richcompare = function(self, other, op) {
     return res
 }
 
+// The position of item `key` in the view, counted from the end when negative
+function item_index(self, key) {
+    var nb_items = _b_.memoryview.mp_length(self)
+    key = $B.PyNumber_Index(key)
+    if (key < 0) {
+        key += nb_items
+    }
+    if (key < 0 || key >= nb_items) {
+        $B.RAISE(_b_.IndexError, "index out of bounds on dimension 1")
+    }
+    return key
+}
+
 _b_.memoryview.sq_ass_item = function(self, key, value) {
-    try {
-        $B.$setitem(self.obj, key, value)
-    } catch (err) {
+    if ($B.is_bytes(self.obj)) {
         $B.RAISE(_b_.TypeError, "cannot modify read-only memory")
     }
+    if ($B.is_int(key)) {
+        key = item_index(self, key)
+        if (self.format == 'B' && $B.is_int(value)) {
+            value = $B.PyNumber_Index(value)
+            if (value < 0 || value > 255) {
+                $B.RAISE(_b_.ValueError,
+                    "memoryview: invalid value for format 'B'")
+            }
+        }
+    }
+    $B.$setitem(self.obj, key, value)
 }
 
 _b_.memoryview.tp_repr = function(self) {
@@ -181,13 +203,7 @@ _b_.memoryview.mp_length = function(self) {
 _b_.memoryview.mp_subscript = function(self, key) {
     var res
     if ($B.is_int(key)) {
-        var nb_items = _b_.memoryview.mp_length(self)
-        if (key < 0) {
-            key += nb_items
-        }
-        if (key < 0 || key >= nb_items) {
-            $B.RAISE(_b_.IndexError, "index out of bounds on dimension 1")
-        }
+        key = item_index(self, key)
         var start = key * self.itemsize
         var view = new DataView(
             Uint8Array.from(self.obj.source.slice(start,

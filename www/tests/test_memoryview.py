@@ -19,3 +19,17 @@ assert v.strides == (1,)
 # PR 2787
 import array
 assert memoryview(array.array('Q', [1, 2, 3, 4, 5])).nbytes == 40
+
+# writing an item: read-only first, then the index, then the value
+from tester import assert_raises
+
+source = bytearray(b"abc")
+view = memoryview(source)
+view[-1] = 120
+assert_raises(IndexError, view.__setitem__, 3, 0,
+    msg="index out of bounds on dimension 1")
+assert_raises(ValueError, view.__setitem__, 0, -1,
+    msg="memoryview: invalid value for format 'B'")
+assert source == bytearray(b"abx")
+assert_raises(TypeError, memoryview(b"abc").__setitem__, 5, 0,
+    msg="cannot modify read-only memory")
