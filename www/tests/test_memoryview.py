@@ -16,6 +16,23 @@ assert v.tolist() == [97, 98, 99, 101, 102, 103]
 assert v.shape == (6,)
 assert v.strides == (1,)
 
+# a slice is a view of the same buffer, read and written through
+source = bytearray(b"abcdef")
+view = memoryview(source)
+tail, every_other, backwards = view[1:], view[::2], view[::-1]
+source[1] = 120
+assert tail.obj is source
+assert tail.tolist() == [120, 99, 100, 101, 102]
+assert list(backwards[1:3]) == [101, 100]
+tail[0] = 98
+every_other[1] = 67
+assert bytes(source) == b"abCdef"
+assert bytes(backwards[::2]) == b"fdb" and bytes(every_other[::-1]) == b"eCa"
+assert every_other.strides == (2,) and not every_other.c_contiguous
+assert view[2:6].cast("I").tolist() == [int.from_bytes(b"Cdef", "little")]
+tail[0:2] = b"xy"
+assert bytes(source) == b"axydef"
+
 # PR 2787
 import array
 assert memoryview(array.array('Q', [1, 2, 3, 4, 5])).nbytes == 40

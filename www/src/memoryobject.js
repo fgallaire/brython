@@ -70,8 +70,36 @@ memoryview.$buffer_protocol = true
 memoryview.$not_basetype = true // cannot be a base class
 memoryview.$is_sequence = true
 
+// Where a view's item starts in its buffer, in bytes. A view of a whole
+// buffer reads item k at k * itemsize; a slice keeps the same buffer and reads
+// item k at `offset + k * stride`, a negative stride walking it backwards, so
+// `memoryview(source)[1:]` reads and writes `source` itself.
+function item_start(self, k) {
+    return self.slice === undefined ? k * self.itemsize :
+        self.slice.offset + k * self.slice.stride
+}
+
+// The part of the buffer a slice of a view reads, without making a view
+function slice_of(self, key) {
+    var s = _b_.slice.$conv_for_seq(key, _b_.memoryview.mp_length(self)),
+        step = Number(s.step),
+        count = step > 0 ?
+            Math.max(0, Math.ceil((s.stop - s.start) / step)) :
+            Math.max(0, Math.ceil((s.start - s.stop) / -step)),
+        stride = (self.slice === undefined ? self.itemsize :
+            self.slice.stride) * step
+    return {offset: item_start(self, Number(s.start)), stride, length: count}
+}
+
 function memoryview_eq(self, other) {
-    var other_obj = $B.get_class(other) === memoryview ? other.obj : other
+    var other_is_view = $B.get_class(other) === memoryview
+    if (self.slice !== undefined || (other_is_view && other.slice !== undefined)) {
+        // A slice is equal to what has its items
+        var theirs = other_is_view ? memoryview_funcs.tolist(other) :
+            $B.$list(Array.from(_b_.bytes.$factory(other).source))
+        return $B.rich_comp('__eq__', memoryview_funcs.tolist(self), theirs)
+    }
+    var other_obj = other_is_view ? other.obj : other
     var eq = $B.$getattr($B.get_class(self.obj), '__eq__')
     return $B.$call(eq, self.obj, other_obj) === true
 }
@@ -156,8 +184,25 @@ function item_index(self, key) {
 }
 
 _b_.memoryview.sq_ass_item = function(self, key, value) {
+    // A slice writes the items of the buffer it reads
     if ($B.is_bytes(self.obj)) {
         $B.RAISE(_b_.TypeError, "cannot modify read-only memory")
+    }
+    if (self.slice !== undefined && self.itemsize != 1) {
+        $B.RAISE(_b_.NotImplementedError,
+            `memoryview: assignment to a slice of format '${self.format}'`)
+    }
+    if (self.slice !== undefined && $B.get_class(key) === _b_.slice) {
+        var target = slice_of(self, key),
+            values = _b_.bytes.$factory(value).source
+        if (values.length != target.length) {
+            $B.RAISE(_b_.ValueError, "memoryview assignment: lvalue " +
+                "and rvalue have different structures")
+        }
+        for (var k = 0; k < target.length; k++) {
+            $B.$setitem(self.obj, target.offset + k * target.stride, values[k])
+        }
+        return
     }
     if ($B.is_int(key)) {
         key = item_index(self, key)
@@ -167,6 +212,9 @@ _b_.memoryview.sq_ass_item = function(self, key, value) {
                 $B.RAISE(_b_.ValueError,
                     "memoryview: invalid value for format 'B'")
             }
+        }
+        if (self.slice !== undefined) {
+            key = item_start(self, key)
         }
     }
     $B.$setitem(self.obj, key, value)
@@ -185,9 +233,15 @@ _b_.memoryview.tp_hash = function(self) {
 }
 
 _b_.memoryview.tp_iter = function(self) {
+    // A slice yields its own items, read as the walk reaches them
+    var items = function*() {
+        for (var k = 0; k < _b_.memoryview.mp_length(self); k++) {
+            yield _b_.memoryview.mp_subscript(self, k)
+        }
+    }
     return {
         ob_type: $B.memory_iterator,
-        it: $B.make_js_iterator(self.obj)
+        it: self.slice === undefined ? $B.make_js_iterator(self.obj) : items()
     }
 }
 
@@ -197,14 +251,15 @@ _b_.memoryview.tp_new = function(cls, args, kw) {
 
 
 _b_.memoryview.mp_length = function(self) {
-    return _b_.len(self.obj) / self.itemsize
+    return self.slice === undefined ? _b_.len(self.obj) / self.itemsize :
+        self.slice.length
 }
 
 _b_.memoryview.mp_subscript = function(self, key) {
     var res
     if ($B.is_int(key)) {
         key = item_index(self, key)
-        var start = key * self.itemsize
+        var start = item_start(self, key)
         var view = new DataView(
             Uint8Array.from(self.obj.source.slice(start,
                 start + self.itemsize)).buffer)
@@ -212,23 +267,23 @@ _b_.memoryview.mp_subscript = function(self, key) {
         return typeof res == 'bigint' ? _b_.int.$int_or_long(res) :
             struct_format[self.format].float ? $B.fast_float(res) : res
     }
-    // fix me : add slice support for other formats than B
+    if ($B.get_class(key) === _b_.slice) {
+        // A view of the same buffer, its own items picked out of it. A
+        // stepped slice (mv[::2], mv[::-1]) of more than one item is not
+        // contiguous, which struct.pack_into, for one, reads
+        var mv = memoryview.$factory(self.obj)
+        mv.format = self.format
+        mv.itemsize = self.itemsize
+        mv.slice = slice_of(self, key)
+        mv.shape = _b_.tuple.$factory([mv.slice.length])
+        mv.strides = _b_.tuple.$factory([mv.slice.stride])
+        mv.c_contiguous = mv.f_contiguous = mv.contiguous =
+            mv.slice.stride == self.itemsize || mv.slice.length <= 1
+        return mv
+    }
     var getitem = $B.$getattr($B.get_class(self.obj), '__getitem__', $B.NULL)
     if (getitem !== $B.NULL) {
         res = $B.$call(getitem, self.obj, key)
-    }
-    if ($B.get_class(key) === _b_.slice) {
-        var mv = memoryview.$factory(res)
-        // A stepped slice (mv[::2], mv[::-1]) is not contiguous; record it so
-        // .c_contiguous / .f_contiguous / .contiguous and the buffer protocol
-        // report it as CPython does (e.g. struct.pack_into rejects it).
-        var step = key.step
-        if (step !== undefined && step !== _b_.None && step !== 1 && step !== 1n) {
-            mv.c_contiguous = false
-            mv.f_contiguous = false
-            mv.contiguous = false
-        }
-        return mv
     }
 }
 
@@ -266,6 +321,10 @@ memoryview_funcs.c_contiguous_get = function(self) {
 memoryview_funcs.c_contiguous_set = _b_.None
 
 memoryview_funcs.cast = function(self, format, shape) {
+    if (self.slice !== undefined && ! self.c_contiguous) {
+        $B.RAISE(_b_.TypeError,
+            "memoryview: casts are restricted to C-contiguous views")
+    }
     if (! struct_format.hasOwnProperty(format)) {
         $B.RAISE(_b_.ValueError, `unknown format: '${format}'`)
     }
@@ -289,13 +348,22 @@ memoryview_funcs.cast = function(self, format, shape) {
                 'memoryview: product(shape) * itemsize != buffer size')
         }
     }
-    if (_b_.len(self.obj) % new_itemsize != 0) {
+    var nbytes = self.slice === undefined ? _b_.len(self.obj) :
+        self.slice.length * self.itemsize
+    if (nbytes % new_itemsize != 0) {
         $B.RAISE(_b_.TypeError, "memoryview: length is not " +
             "a multiple of itemsize")
     }
     var res = memoryview.$factory(self.obj)
     res.format = format
     res.itemsize = new_itemsize
+    if (self.slice !== undefined) {
+        // The cast of a slice reads the same bytes of the buffer
+        res.slice = {offset: self.slice.offset, stride: new_itemsize,
+            length: nbytes / new_itemsize}
+        res.shape = _b_.tuple.$factory([res.slice.length])
+        res.strides = _b_.tuple.$factory([new_itemsize])
+    }
     return res
 }
 
@@ -443,22 +511,36 @@ memoryview_funcs.suboffsets_get = function(self) {
 
 memoryview_funcs.suboffsets_set = _b_.None
 
-memoryview_funcs.tobytes = function(self) {
-    if ($B.$isinstance(self.obj, [_b_.bytes, _b_.bytearray])) {
+function buffer_bytes(obj) {
+    if ($B.$isinstance(obj, [_b_.bytes, _b_.bytearray])) {
         return {
             ob_type: _b_.bytes,
-            source: self.obj.source
+            source: obj.source
         }
     } else if ($B.imported.array) {
         var array = $B.module_getattr($B.imported.array, 'array')
-        if ($B.$isinstance(self.obj, array)) {
+        if ($B.$isinstance(obj, array)) {
             // Was `array.tobytes(self.obj)` — methods live in tp_funcs,
             // not as direct JS properties (finalize_type installs them
             // in tp_dict as method_descriptors).
-            return array.tp_funcs.tobytes(self.obj)
+            return array.tp_funcs.tobytes(obj)
         }
     }
-    $B.RAISE(_b_.TypeError, 'cannot run tobytes with ' + $B.class_name(self.obj))
+    $B.RAISE(_b_.TypeError, 'cannot run tobytes with ' + $B.class_name(obj))
+}
+
+memoryview_funcs.tobytes = function(self) {
+    var whole = buffer_bytes(self.obj)
+    if (self.slice === undefined) {
+        return whole
+    }
+    // A slice's bytes, item by item
+    var source = []
+    for (var k = 0; k < self.slice.length; k++) {
+        var start = item_start(self, k)
+        source.push(...whole.source.slice(start, start + self.itemsize))
+    }
+    return {ob_type: _b_.bytes, source}
 }
 
 memoryview_funcs.tolist = function(self) {
@@ -473,6 +555,10 @@ memoryview_funcs.toreadonly = function(self) {
     // return a new read-only view; the original stays writable (it mutated
     // self and returned None, so memoryview(b).toreadonly() was unusable)
     var res = memoryview.$factory(self.obj)
+    for (var field of ['format', 'itemsize', 'slice', 'shape', 'strides',
+                       'c_contiguous', 'f_contiguous', 'contiguous']) {
+        res[field] = self[field]
+    }
     res.readonly = 1
     return res
 }

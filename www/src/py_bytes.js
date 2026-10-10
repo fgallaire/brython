@@ -197,7 +197,7 @@ function _new(cls, args, kw) {
     } else if ($B.$isinstance(source, [_b_.bytes, _b_.bytearray])) {
         source = source.source
     } else if ($B.$isinstance(source, _b_.memoryview)) {
-        source = source.obj.source
+        source = _b_.memoryview.tp_funcs.tobytes(source).source
     }else if($B.imported.array &&
             $B.$isinstance(source, $B.module_getattr($B.imported.array, 'array'))){
         var array = $B.module_getattr($B.imported.array, 'array')
