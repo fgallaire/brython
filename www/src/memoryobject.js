@@ -161,7 +161,11 @@ _b_.memoryview.sq_ass_item = function(self, key, value) {
     }
     if ($B.is_int(key)) {
         key = item_index(self, key)
-        if (self.format == 'B' && $B.is_int(value)) {
+        if (self.format == 'B') {
+            if (! $B.is_int(value)) {
+                $B.RAISE(_b_.TypeError,
+                    "memoryview: invalid type for format 'B'")
+            }
             value = $B.PyNumber_Index(value)
             if (value < 0 || value > 255) {
                 $B.RAISE(_b_.ValueError,

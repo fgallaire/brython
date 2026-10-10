@@ -30,6 +30,10 @@ assert_raises(IndexError, view.__setitem__, 3, 0,
     msg="index out of bounds on dimension 1")
 assert_raises(ValueError, view.__setitem__, 0, -1,
     msg="memoryview: invalid value for format 'B'")
+assert_raises(TypeError, view.__setitem__, 0, "x",
+    msg="memoryview: invalid type for format 'B'")
+assert_raises(TypeError, view.__setitem__, 0, 1.5,
+    msg="memoryview: invalid type for format 'B'")
 assert source == bytearray(b"abx")
 assert_raises(TypeError, memoryview(b"abc").__setitem__, 5, 0,
     msg="cannot modify read-only memory")
