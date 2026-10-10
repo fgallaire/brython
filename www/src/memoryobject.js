@@ -237,6 +237,7 @@ memoryview_funcs.__enter__ = function(self) {
 
 memoryview_funcs.__exit__ = function(self) {
     memoryview.tp_funcs.release(self)
+    return _b_.None
 }
 
 memoryview_funcs._from_flags = function(self) {
@@ -402,11 +403,11 @@ memoryview_funcs.readonly_get = function(self) {
 memoryview_funcs.readonly_set = _b_.None
 
 memoryview_funcs.release = function(self) {
-    if (self.$released) {
-        return
+    if (! self.$released) {
+        self.$released = true
+        self.obj.exports -= 1
     }
-    self.$released = true
-    self.obj.exports -= 1
+    return _b_.None
 }
 
 memoryview_funcs.shape_get = function(self) {
@@ -466,6 +467,40 @@ _b_.memoryview.tp_methods = ["release", "tobytes", "hex", "tolist", "cast", "tor
 _b_.memoryview.classmethods = ["_from_flags", "__class_getitem__"]
 
 _b_.memoryview.tp_getset = ["obj", "nbytes", "readonly", "itemsize", "format", "ndim", "shape", "strides", "suboffsets", "c_contiguous", "f_contiguous", "contiguous"]
+
+// A view released holds its buffer no longer: every operation and attribute
+// refuses, release() and the context manager's exit aside. Applied here, once,
+// around what each of them does.
+function check_released(self) {
+    if (self.$released) {
+        $B.RAISE(_b_.ValueError,
+            "operation forbidden on released memoryview object")
+    }
+}
+
+const refusing = (operation) => function(self, ...args) {
+    check_released(self)
+    return operation(self, ...args)
+}
+
+for (const slot of ['mp_length', 'mp_subscript', 'sq_ass_item', 'tp_iter']) {
+    _b_.memoryview[slot] = refusing(_b_.memoryview[slot])
+}
+for (const name of ['tobytes', 'tolist', 'hex', 'cast', 'toreadonly', 'count',
+                    'index', '__enter__']) {
+    memoryview_funcs[name] = refusing(memoryview_funcs[name])
+}
+for (const name of _b_.memoryview.tp_getset) {
+    memoryview_funcs[name + '_get'] = refusing(memoryview_funcs[name + '_get'])
+}
+
+const factory = memoryview.$factory
+memoryview.$factory = function(obj) {
+    if ($B.get_class(obj) === memoryview) {
+        check_released(obj)
+    }
+    return factory.apply(null, arguments)
+}
 
 /* memoryview end */
 

@@ -1,3 +1,22 @@
+from tester import assert_raises
+
+# a released view refuses every operation and attribute, release() and the
+# context manager's exit aside
+source = bytearray(b"abc")
+with memoryview(source) as view:
+    pass
+assert view.release() is None
+released ="operation forbidden on released memoryview object"
+for operation in [len, list, bytes, memoryview, lambda v: v[0],
+                  lambda v: v.__setitem__(0, 120), lambda v: v.tobytes(),
+                  lambda v: v.tolist(), lambda v: v.hex(), lambda v: v.cast("B"),
+                  lambda v: v.toreadonly(), lambda v: v.count(97),
+                  lambda v: v.index(97), lambda v: v.__enter__(),
+                  lambda v: v.obj, lambda v: v.nbytes, lambda v: v.shape,
+                  lambda v: v.readonly, lambda v: v.format]:
+    assert_raises(ValueError, operation, view, msg=released)
+assert list(source) == [97, 98, 99]
+
 b = b'essai'
 m = memoryview(b)
 
