@@ -421,14 +421,14 @@ $B.$delete = function(name, locals_id, inum) {
     var found = false
     if (locals_id === 'local') {
         var frame = $B.frame_obj.frame
-        if (frame[1].hasOwnProperty(name)) {
+        if (Object.hasOwn(frame[1], name)) {
             found = true
             del(frame[1][name])
             delete frame[1][name]
         }
     } else if (locals_id === 'global') {
         var frame = $B.frame_obj.frame
-        if (frame[3].hasOwnProperty(name)) {
+        if (Object.hasOwn(frame[3], name)) {
             found = true
             del(frame[3][name])
             delete frame[3][name]

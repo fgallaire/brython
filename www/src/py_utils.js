@@ -1044,7 +1044,7 @@ $B.delete_for_reassign = function(name, namespace) {
     if (namespace.$is_namespace) {
         return $B.$delitem(namespace, name)
     }
-    if (namespace.hasOwnProperty && namespace.hasOwnProperty(name)) {
+    if (Object.hasOwn(namespace, name)) {
         try {
             var value = namespace[name]
         } catch (err) {

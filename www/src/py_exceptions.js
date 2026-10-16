@@ -262,7 +262,7 @@ frame_funcs.f_back_get = function(self) {
 frame_funcs.f_back_set = _b_.None
 
 frame_funcs.f_builtins_get = function(self) {
-    if (self[3].hasOwnProperty('__builtins__')) {
+    if (Object.hasOwn(self[3], '__builtins__')) {
         return $B.get_dict(self[3].__builtins__)
     }
     return $B.obj_dict(_b_)
