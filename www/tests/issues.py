@@ -3058,6 +3058,21 @@ match x:
 
 assert ok
 
+# a class pattern keyword spelled like a method of JavaScript objects
+class HasOwnPattern:
+    __match_args__ = ('x',)
+
+    def __init__(self):
+        self.x = 1
+
+match HasOwnPattern():
+    case HasOwnPattern(1, hasOwnProperty=2):
+        ok = 'hasOwnProperty'
+    case HasOwnPattern(1):
+        ok = 'x'
+
+assert ok == 'x'
+
 # invalid context manager
 test = """x = 'abc'
 with x as y:
