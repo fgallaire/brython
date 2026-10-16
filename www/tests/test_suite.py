@@ -1011,6 +1011,18 @@ assert_raises(SyntaxError, exec, "f(x, 2a)",
 # object(1) raises TypeError
 assert_raises(TypeError, object, 1)
 
+# unpacked keywords spelled like properties of JavaScript objects
+class InheritedNames:
+    def keys(self):
+        return ['valueOf']
+
+    def __getitem__(self, key):
+        return 3
+
+assert sorted(dict(**{'toString': 1}, a=2)) == ['a', 'toString']
+assert '{x}'.format(**{'constructor': 2}, x=1) == '1'
+assert '{x}'.format(**InheritedNames(), x=1) == '1'
+
 # issue 2112
 t = [((1, 2),), ((3, 4),)]
 lc = [f'{a + x}{b}' for (a, b), in t for x in range(2)]

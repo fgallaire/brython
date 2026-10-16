@@ -323,7 +323,7 @@ $B.parse_kwargs = function(kw_args, fname) {
                         `${fname}() keywords must be strings`
                     )
                 }
-                if (kwa[key] !== undefined) {
+                if (Object.hasOwn(kwa, key)) {
                     $B.RAISE(_b_.TypeError,
                         `${fname}() got multiple values for keyword argument '${key}'`
                     )
@@ -348,7 +348,7 @@ $B.parse_kwargs = function(kw_args, fname) {
                     $B.RAISE(_b_.TypeError, fname +
                         "() keywords must be strings")
                 }
-                if (kwa[k] !== undefined) {
+                if (Object.hasOwn(kwa, k)) {
                     $B.RAISE(_b_.TypeError, fname +
                         "() got multiple values for argument '" +
                         k + "'")
