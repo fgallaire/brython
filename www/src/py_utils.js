@@ -198,7 +198,7 @@ $B.parse_args = function(args, fname, argcount, slots, arg_names, defaults,
     // keywords, or do they have a default value ?
     for (var j = nb_passed_pos; j < nb_pos_or_kw; j++) {
         var arg_name = arg_names[j]
-        if (kw && kw.hasOwnProperty(arg_name)) {
+        if (kw && Object.hasOwn(kw, arg_name)) {
             // value passed in keywords
             if (j < nb_posonly) {
                 // positional-only argument name is found in keyword args; it
@@ -230,7 +230,7 @@ $B.parse_args = function(args, fname, argcount, slots, arg_names, defaults,
                 slots[arg_name] = def_value
                 if (j < nb_posonly) {
                     // Cf. comment above, case (A)
-                    if (kw && kw.hasOwnProperty(arg_name) && kwarg) {
+                    if (kw && Object.hasOwn(kw, arg_name) && kwarg) {
                         extra_kw[arg_name] = kw[arg_name]
                         kw[arg_name] = empty
                     }
@@ -246,7 +246,7 @@ $B.parse_args = function(args, fname, argcount, slots, arg_names, defaults,
     var missing_kwonly
     for (var i = nb_pos_or_kw; i < nb_expected; i++) {
         var arg_name = arg_names[i]
-        if (kw && kw.hasOwnProperty(arg_name)) {
+        if (kw && Object.hasOwn(kw, arg_name)) {
             slots[arg_name] = kw[arg_name]
             kw[arg_name] = empty
         } else {
