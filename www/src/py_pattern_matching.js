@@ -289,7 +289,7 @@ $B.pattern_match = function(subject, pattern) {
                             'is not a string: ' + klass_arg)
                     }
                     // Check duplicate pattern
-                    if (pattern.keywords.hasOwnProperty(klass_arg)) {
+                    if (Object.hasOwn(pattern.keywords, klass_arg)) {
                         $B.RAISE(_b_.TypeError, '__match_arg__ item ' +
                             klass_arg + ' was passed as keyword pattern')
                     }
