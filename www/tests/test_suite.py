@@ -988,6 +988,21 @@ assert_raises(TypeError, f,
 assert_raises(TypeError, f, 1,
     msg="f() missing 2 required positional arguments: 'y' and 'z'")
 
+# a parameter spelled like a method of JavaScript objects
+def has_own_parameter(hasOwnProperty, x=5, *, y=6):
+    return [hasOwnProperty, x, y]
+
+assert has_own_parameter(1) == [1, 5, 6]
+assert has_own_parameter(1, x=2, y=3) == [1, 2, 3]
+assert_raises(TypeError, has_own_parameter, 1, hasOwnProperty=2,
+    msg="has_own_parameter() got multiple values for argument 'hasOwnProperty'")
+
+def has_own_required(hasOwnProperty, x):
+    return x
+
+assert_raises(TypeError, has_own_required, 1,
+    msg="has_own_required() missing 1 required positional argument: 'x'")
+
 
 # issue 2041
 def optional_keyword_only_arg(*, a, b=None):

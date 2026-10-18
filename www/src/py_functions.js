@@ -790,7 +790,7 @@ function make_arguments_parser(f) {
                             `() got an unexpected keyword argument '${key}'`)
                     }
                 }
-                if (locals.hasOwnProperty(key)) {
+                if (Object.hasOwn(locals, key)) {
                     if (kwarg && index < posonly_length) {
                         $B.str_dict_set(locals[kwarg], key, value)
                         return
@@ -868,7 +868,7 @@ function make_arguments_parser(f) {
         // use default values
         if (filled_pos < nb_formal) {
             for (let key in def_obj) {
-                if (! locals.hasOwnProperty(key)) {
+                if (! Object.hasOwn(locals, key)) {
                     locals[key] = def_obj[key]
                     filled_pos++
                 }
@@ -880,7 +880,7 @@ function make_arguments_parser(f) {
                 var missing_kwonly = []
                 for (let i = 0; i < nb_formal; i++) {
                     let arg_name = arg_names[i]
-                    if (! locals.hasOwnProperty(arg_name)) {
+                    if (! Object.hasOwn(locals, arg_name)) {
                         if (i < positional_length) {
                             missing_positional.push(`'${arg_name}'`)
                         } else {
