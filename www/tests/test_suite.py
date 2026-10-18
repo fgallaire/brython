@@ -1109,6 +1109,16 @@ def f(**kw):
 
 assert f(**d) == {'a': 7}
 
+# a builtin given a keyword spelled like a method of JavaScript objects
+for call in [lambda: 'a b'.split(hasOwnProperty=1),
+             lambda: round(1.5, hasOwnProperty=1)]:
+    try:
+        call()
+    except TypeError:
+        pass
+    else:
+        raise AssertionError('hasOwnProperty accepted as a keyword')
+
 # issue 2422
 a2422 = 0
 del globals()['a2422']
