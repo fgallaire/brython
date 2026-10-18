@@ -921,6 +921,56 @@ assert x == 1
 assert y == 2
 assert info == (1, 2)
 
+# a variable spelled like a method of JavaScript objects
+def bind_has_own():
+    global hasOwnProperty
+    hasOwnProperty = 1
+
+def read_missing_global():
+    try:
+        missing_with_has_own
+    except NameError:
+        return 'NameError'
+
+def reassign_global():
+    global reassigned_with_has_own
+    reassigned_with_has_own = 1
+    reassigned_with_has_own = 2
+    return reassigned_with_has_own
+
+def delete_missing_global():
+    global deleted_with_has_own
+    try:
+        del deleted_with_has_own
+    except NameError:
+        return 'NameError'
+
+def builtins_of_frame():
+    import sys
+    return 'len' in sys._getframe().f_builtins
+
+bind_has_own()
+assert read_missing_global() == 'NameError'
+assert reassign_global() == 2
+assert delete_missing_global() == 'NameError'
+assert builtins_of_frame()
+del hasOwnProperty, reassigned_with_has_own
+
+def local_has_own():
+    hasOwnProperty = 1
+    x = 1
+    x = 2
+    try:
+        unbound
+    except UnboundLocalError:
+        pass
+    else:
+        raise AssertionError('unbound local found')
+    unbound = 3
+    return x
+
+assert local_has_own() == 2
+
 # error in function calls
 def f():
     pass

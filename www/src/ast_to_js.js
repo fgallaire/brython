@@ -629,7 +629,7 @@ function name_scope(name, scopes) {
 }
 
 function resolve_in_namespace(name, ns) {
-    if (ns.$proxy) {
+    if (ns.$proxy || ns[$B.LOCALS_PROXY]) {
         // namespace is a proxy around the locals argument of exec()
         return ns[name] === undefined ? {found: false} :
                             {found: true, value: ns[name]}
@@ -642,11 +642,7 @@ function resolve_in_namespace(name, ns) {
             return {found: false}
         }
     }
-    if (! ns.hasOwnProperty) {
-        if (ns[name] !== undefined) {
-            return {found: true, value: ns[name]}
-        }
-    } else if (ns.hasOwnProperty(name)) {
+    if (Object.hasOwn(ns, name)) {
         return {found: true, value: ns[name]}
     } else if (ns.$dict) {
         try {
@@ -711,15 +707,14 @@ $B.resolve_local = function(name, inum) {
     if ($B.frame_obj !== null) {
 
         var frame = $B.frame_obj.frame
-        if (frame[1].hasOwnProperty) {
-            if (frame[1].hasOwnProperty(name)) {
-                return frame[1][name]
-            }
-        } else {
+        if (frame[1][$B.LOCALS_PROXY]) {
+            // a proxy around the locals argument of exec()
             var value = frame[1][name]
             if (value !== undefined) {
                 return value
             }
+        } else if (Object.hasOwn(frame[1], name)) {
+            return frame[1][name]
         }
     }
     var exc = $B.EXC(_b_.UnboundLocalError, `cannot access local variable ` +

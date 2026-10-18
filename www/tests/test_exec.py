@@ -142,6 +142,12 @@ assert y == 1
 z = eval("a", {}, collections.UserDict(a=2))
 assert z == 2
 
+# a mapping of locals with a key spelled like a method of JavaScript objects
+z = eval("a", {}, collections.UserDict(a=2, hasOwnProperty=1))
+assert z == 2
+assert_raises(NameError, eval, "missing", {},
+    collections.UserDict(hasOwnProperty=1))
+
 # issue 1808
 class A: pass
 assert_raises(TypeError, exec, A(),
