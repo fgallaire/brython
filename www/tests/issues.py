@@ -271,6 +271,17 @@ assert a[X()] == 'b'
 x = [1, 2, 3]
 assert sum(-y for y in x) == -6
 
+# what sum() refuses as a start
+for start, message in [
+        ('', "sum() can't sum strings [use ''.join(seq) instead]"),
+        (b'', "sum() can't sum bytes [use b''.join(seq) instead]"),
+        (bytearray(), "sum() can't sum bytearray [use b''.join(seq) instead]")]:
+    try:
+        sum([], start)
+        raise AssertionError('should have raised TypeError')
+    except TypeError as exc:
+        assert str(exc) == message
+
 # issue 186
 source = [0, 1, 2, 3]
 total = sum(source.pop() for _ in range(len(source)))

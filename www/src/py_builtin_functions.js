@@ -2095,8 +2095,16 @@ _b_.sum = function() {
     var iterable = $.iterable,
         start = $.start
 
-    if ($B.$isinstance(start, [_b_.str, _b_.bytes])) {
+    if ($B.$isinstance(start, _b_.str)) {
+        $B.RAISE(_b_.TypeError, "sum() can't sum strings" +
+            " [use ''.join(seq) instead]")
+    }
+    if ($B.$isinstance(start, _b_.bytes)) {
         $B.RAISE(_b_.TypeError, "sum() can't sum bytes" +
+            " [use b''.join(seq) instead]")
+    }
+    if ($B.$isinstance(start, _b_.bytearray)) {
+        $B.RAISE(_b_.TypeError, "sum() can't sum bytearray" +
             " [use b''.join(seq) instead]")
     }
 
