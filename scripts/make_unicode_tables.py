@@ -74,9 +74,17 @@ with open(os.path.join("ucd", "CaseFolding.txt")) as f:
             continue
         parts = [x.strip() for x in line.split(";")]
         status = parts[1]
-        if status == "F" or status == "S":
+        if status == "C" or status == "F":
             casefold[to_int(parts[0])] = [to_int(x) for x in
                 parts[2].split()]
+
+# str.casefold() applies toLowerCase to a code point that isn't in the table: it
+# holds what this doesn't give, a code point that folds to itself included
+folds = {}
+for code in range(0x110000):
+    fold = casefold.get(code, [code])
+    if fold != [ord(char) for char in chr(code).lower()]:
+        folds[code] = fold
 
 tables = {}
 
@@ -135,7 +143,7 @@ with open(os.path.join(dest_dir, "unicode_data.js"), "w",
     out.write('\n$B.digits_starts = ')
     json.dump(digits_starts, out, separators=[",", ":"])
     out.write("\n$B.unicode_casefold = " +
-        str(casefold).replace(" ", ""))
+        str(folds).replace(" ", ""))
     out.write("\n$B.unicode_bidi_whitespace = " +
         str(bidi_ws).replace(" ", ""))
     out.write("\n$B.unicode_titles = " +

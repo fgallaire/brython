@@ -452,6 +452,18 @@ assert 'a' * -1 == ''
 # PR 1911
 assert 'abc'.startswith('b', 1)
 
+# casefold
+assert 'straße'.casefold() == 'strasse'
+assert 'ß'.upper().casefold() == 'ss'
+assert 'ΣΑΣ'.casefold() == 'σασ'
+assert 'σας'.casefold() == 'σασ'
+assert 'ﬁ'.casefold() == 'fi'
+assert 'ẞ'.casefold() == 'ss'
+assert 'Ꭰ'.casefold() == 'Ꭰ'
+assert 'ꭰ'.casefold() == 'Ꭰ'
+assert chr(0x10400).casefold() == chr(0x10428)
+assert 'ABC'.casefold() == 'abc'
+
 # issue 1995
 assert '5'.isnumeric()
 

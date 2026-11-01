@@ -1981,7 +1981,7 @@ str_funcs.capitalize = function(self) {
 }
 
 str_funcs.casefold = function(self) {
-    $B.check_nb_args_no_kw('set.remove', 1, arguments)
+    $B.check_nb_args_no_kw('str.casefold', 1, arguments)
     var res = "",
         char,
         cf,
@@ -1989,10 +1989,10 @@ str_funcs.casefold = function(self) {
         chars = to_chars(_self)
     for (var i = 0, len = chars.length; i < len; i++) {
         char = chars[i]
-        cf = $B.unicode_casefold[char]
+        cf = $B.unicode_casefold[char.codePointAt(0)]
         if (cf) {
             for (let cp of cf) {
-                res += String.fromCharCode(cp)
+                res += String.fromCodePoint(cp)
             }
         } else {
             res += char.toLowerCase()
