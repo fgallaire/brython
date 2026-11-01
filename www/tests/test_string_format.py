@@ -209,6 +209,12 @@ assert "I have {:10} bananas.".format(42) == "I have         42 bananas."
 assert "I have {:10} bananas.".format(42.5) == "I have       42.5 bananas."
 assert "I have {:,} bananas.".format(42000) == "I have 42,000 bananas."
 assert "I have {:,} bananas.".format(42000.0) == "I have 42,000.0 bananas."
+assert "{:_}".format(1234567.5) == "1_234_567.5"
+assert "{:_.2f}".format(1234567.5) == "1_234_567.50"
+assert "{:,}".format(-123456.5) == "-123,456.5"
+assert "{:+,}".format(123456.5) == "+123,456.5"
+assert "{:,.2e}".format(1234.5) == "1.23e+03"
+assert "{:,.1%}".format(12.3456) == "1,234.6%"
 assert "I have {:c} bananas.".format(42) == "I have * bananas."
 
 # other examples from Python docs

@@ -287,12 +287,15 @@ float.$format = function(self, fmt) {
     var raw = pf.split('.'),
         _int = raw[0]
     if (fmt.comma) {
-        var len = _int.length, nb = Math.ceil(_int.length / 3), chunks = []
+        // the digits alone: a sign stands before them, an exponent or a %
+        // after them when there is no fractional part
+        var [, lead, digits, tail] = _int.match(/^(\D*)(\d*)(.*)$/),
+            len = digits.length, nb = Math.ceil(len / 3), chunks = []
         for (var i = 0; i < nb; i++) {
-            chunks.push(_int.substring(len - 3 * i - 3, len - 3 * i))
+            chunks.push(digits.substring(len - 3 * i - 3, len - 3 * i))
         }
         chunks.reverse()
-        raw[0] = chunks.join(",")
+        raw[0] = lead + chunks.join(fmt.grouping_option) + tail
     }
     return $B.format_width(raw.join("."), fmt) // in py_string.js
 }
