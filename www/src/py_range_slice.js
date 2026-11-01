@@ -248,7 +248,7 @@ _b_.range.tp_new = function(cls, args, kw) {
 }
 
 _b_.range.nb_bool = function(self) {
-    return self.start != self.end
+    return self.step > 0 ? self.start < self.stop : self.start > self.stop
 }
 
 _b_.range.mp_length = function(self) {

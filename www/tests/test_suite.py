@@ -340,6 +340,14 @@ assert res == ['a', 'b', 'c']
 # restore built-in range
 range = __builtins__.range
 assert list(range(2)) == [0, 1]
+assert not range(0)
+assert not range(2, 2)
+assert not range(3, 0)
+assert not range(0, 3, -1)
+assert range(1)
+assert range(3, 0, -1)
+assert range(2 ** 70)
+assert not range(2 ** 70, 2 ** 70)
 
 # __setattr__ defined in a class
 
