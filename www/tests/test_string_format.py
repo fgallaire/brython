@@ -257,6 +257,13 @@ assert "{0:.{1}f}".format(1.123, 1) == "1.1"
 assert "{:.0f}".format(2.1) == "2"
 assert "{:.0f}".format(-2.1) == "-2"
 
+# an exact half rounds to even in the exponent format
+assert "{:.0e}".format(2.5) == "2e+00"
+assert "{:.0e}".format(3.5) == "4e+00"
+assert "{:.0e}".format(-2.5) == "-2e+00"
+assert "{:.1e}".format(0.125) == "1.2e-01"
+assert "{:.1e}".format(0.375) == "3.8e-01"
+
 # issue 529
 x = [-644475]
 assert "{:,}".format(int(x[0])) == "-644,475"

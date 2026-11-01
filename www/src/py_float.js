@@ -122,6 +122,21 @@ var format_sign = function(val, flags) {
 }
 
 
+// toExponential picks the larger digit for an exact half, Python the even one
+function exponential(value, precision) {
+    var res = value.toExponential(precision),
+        exact = value.toExponential(100),
+        at = exact.indexOf('e'),
+        digits = exact.slice(0, at).replace(/[-.]/g, ''),
+        kept = digits.slice(0, precision + 1)
+    if (/^50*$/.test(digits.slice(precision + 1)) &&
+            '02468'.includes(kept[kept.length - 1])) {
+        return (value < 0 ? '-' : '') + kept[0] +
+            (precision > 0 ? '.' + kept.slice(1) : '') + exact.slice(at)
+    }
+    return res
+}
+
 function preformat(self, fmt) {
     var value = self.value
     if (fmt.empty) {
@@ -149,7 +164,7 @@ function preformat(self, fmt) {
         value *= 100
     }
     if (fmt.type == "e" || fmt.type == "E") {
-        let res = value.toExponential(fmt.precision),
+        let res = exponential(value, fmt.precision),
             exp = parseInt(res.substr(res.search("e") + 1))
             if (Math.abs(exp) < 10) {
                 res = res.substr(0, res.length - 1) + "0" +
@@ -231,7 +246,7 @@ function preformat(self, fmt) {
             }
             fmt.type = undefined
         } else {
-            let res1 = value.toExponential(fmt.precision - 1),
+            let res1 = exponential(value, fmt.precision - 1),
                 exp = parseInt(res1.substr(res1.search("e") + 1))
             if (exp < -4 || exp >= fmt.precision - 1) {
                 var elts = res1.split("e")
