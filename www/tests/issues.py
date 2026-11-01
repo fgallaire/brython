@@ -1646,6 +1646,25 @@ except:
 
 # PEP 448
 assert dict(**{'x': 1}, y=2, **{'z': 3}) == {"x": 1, "y": 2, "z": 3}
+
+# keywords and ** keep their order, and are evaluated in that order
+def keyword_names(**kw):
+    return list(kw)
+
+assert keyword_names(**{'x': 1}, y=2) == ['x', 'y']
+assert keyword_names(a=1, **{'b': 2}, c=3) == ['a', 'b', 'c']
+assert keyword_names(**{'x': 1}, y=2, **{'z': 3}) == ['x', 'y', 'z']
+assert list(dict(a=1, **{'b': 2}, c=3)) == ['a', 'b', 'c']
+
+evaluated = []
+
+def evaluate(value):
+    evaluated.append(value)
+    return {} if value == 'star' else value
+
+keyword_names(**evaluate('star'), y=evaluate('named'))
+assert evaluated == ['star', 'named']
+
 try:
     d = dict(**{'x': 1}, y=2, **{'z': 3, 'x': 9})
     raise Exception("should have raised TypeError")

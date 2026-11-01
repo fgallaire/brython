@@ -1883,8 +1883,14 @@ function make_args(scopes) {
                     `keyword argument repeated: ${keyword.arg}`)
             }
             kwds.add(keyword.arg)
-            named_kwargs.push(
-                `${keyword.arg}: ${$B.js_from_ast(keyword.value, scopes)}`)
+            var value = $B.js_from_ast(keyword.value, scopes)
+            if (starred_kwargs.length > 0) {
+                // after a **, it keeps its place among them
+                starred_kwargs.push(
+                    `_b_.dict.$literal([['${keyword.arg}', ${value}]])`)
+            } else {
+                named_kwargs.push(`${keyword.arg}: ${value}`)
+            }
         } else {
             starred_kwargs.push($B.js_from_ast(keyword.value, scopes))
         }
