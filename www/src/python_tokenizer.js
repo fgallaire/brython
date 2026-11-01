@@ -77,55 +77,28 @@ $B.in_unicode_category = function(category, cp) {
 function in_unicode_category(category, cp) {
     // categories used internally but not valid as General Category
     // eg 'numeric' in str.isnumeric
+    // A table is sorted, its items are code points or [first, count, step]: cp
+    // can only be in the last one that starts at or before it
     var table = $B.unicode[category],
-        start = 0,
-        end = table.length - 1,
-        len = table.length,
-        ix = Math.floor(len / 2),
-        nb = 0
-    var first = table[start],
-        item = typeof first == 'number' ? first : first[0]
-    if (cp < item) {
-        return false
-    }
-    var last = table[end]
-    if (typeof last == 'number') {
-        if (cp > last) {
-            return false
-        }
-    } else if (last[0] + last[1] < cp) {
-        return false
-    }
-
-    while (true) {
-        nb++
-        if (nb > 100) {
-            console.log('infinite loop for', cp)
-            alert()
-        }
-        item = table[ix]
-        if (typeof item != 'number') {
-            item = item[0]
-        }
-        if (item == cp) {
-            return true
-        } else if (item > cp) {
+        start = -1,
+        end = table.length
+    while (end - start > 1) {
+        var ix = (start + end) >> 1,
+            item = table[ix]
+        if ((typeof item == 'number' ? item : item[0]) > cp) {
             end = ix
         } else {
             start = ix
         }
-        len = Math.floor((end - start) / 2)
-        if (end - start == 1) {
-            break
-        }
-        ix = start + len
     }
-    var step = table[start][2]
-    if (step === undefined) {
-        return table[start][0] + table[start][1] > cp
+    if (start == -1) {
+        return false
     }
-    return (table[start][0] + step * table[start][1] > cp) &&
-        ((cp - table[start][0]) % step) == 0
+    if (typeof table[start] == 'number') {
+        return table[start] == cp
+    }
+    var [first, count, step = 1] = table[start]
+    return first + step * count > cp && (cp - first) % step == 0
 }
 
 const FT_START = {f: 'FSTRING_START', t: 'TSTRING_START'},

@@ -455,6 +455,16 @@ assert 'abc'.startswith('b', 1)
 # issue 1995
 assert '5'.isnumeric()
 
+# the first and the last items of the tables of code points
+assert '²'.isdigit()
+assert '³'.isdigit()
+assert chr(0x1f100).isdigit()
+assert chr(0x1f10a).isdigit()
+assert not chr(0x1f10b).isdigit()
+assert chr(13317).isnumeric()
+assert chr(194704).isnumeric()
+assert not chr(194705).isnumeric()
+
 # issue 1997
 class A:
     def __repr__(self):
