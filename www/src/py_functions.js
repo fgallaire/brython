@@ -833,8 +833,8 @@ function make_arguments_parser(f) {
                             `${name} argument after ** must be a mapping, ` +
                             `not ${$B.class_name(elt[$B.KW][i])}`)
                     }
-                    for (let key of $B.make_js_iterator(keys_method(elt[$B.KW][i]))) {
-                        add_key(key, getitem(elt[$B.KW][i], key))
+                    for (let key of $B.make_js_iterator($B.$call(keys_method, elt[$B.KW][i]))) {
+                        add_key(key, $B.$call(getitem, elt[$B.KW][i], key))
                     }
                 }
             }

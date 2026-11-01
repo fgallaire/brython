@@ -361,7 +361,7 @@ $B.parse_kwargs = function(kw_args, fname) {
                             `'${$B.class_name(kw_arg)}' object is not subscriptable`)
                     }
                 }
-                kwa[k] = getitem(kw_arg, k)
+                kwa[k] = $B.$call(getitem, kw_arg, k)
             }
         }
     }

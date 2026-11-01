@@ -1291,6 +1291,21 @@ res = f(3, *[1, 8], 5, y=2, **{'a': 0}, **{'z': 3})
 assert res[0] == (3, 1, 8, 5)
 assert res[1] == {'y': 2, 'a': 0, 'z': 3}
 
+# ** of a subclass of dict
+class DictSubclass(dict):
+    pass
+
+def keywords(**kw):
+    return kw
+
+assert keywords(**DictSubclass(y=2)) == {'y': 2}
+assert dict(**DictSubclass(y=2)) == {'y': 2}
+
+import collections
+assert keywords(**collections.OrderedDict(a=1)) == {'a': 1}
+assert keywords(**collections.defaultdict(int, a=1)) == {'a': 1}
+assert keywords(**collections.Counter(a=1)) == {'a': 1}
+
 # issue 702
 def f():
     return
