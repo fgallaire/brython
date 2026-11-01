@@ -194,6 +194,60 @@ except ZeroDivisionError as exc:
     exc.add_note('zero')
     assert exc.__notes__ == ['zero']
 
+# a "try" nested in a handler gives back the exception being handled
+def nested_handler():
+    try:
+        raise ValueError(1)
+    except ValueError:
+        try:
+            raise TypeError(2)
+        except TypeError:
+            pass
+        assert repr(sys.exception()) == 'ValueError(1)'
+        raise
+
+assert_raises(ValueError, nested_handler)
+assert sys.exception() is None
+
+def unmatched_handler():
+    try:
+        try:
+            raise ValueError(1)
+        except TypeError:
+            pass
+    except ValueError:
+        pass
+    return sys.exception()
+
+assert unmatched_handler() is None
+
+def raise_in_handler():
+    try:
+        try:
+            raise ValueError(1)
+        except ValueError:
+            raise TypeError(2)
+    except TypeError as e:
+        assert repr(e.__context__) == 'ValueError(1)'
+    return sys.exception()
+
+assert raise_in_handler() is None
+
+def nested_handler_context():
+    try:
+        raise ValueError(1)
+    except ValueError:
+        try:
+            raise TypeError(2)
+        except TypeError:
+            pass
+        raise KeyError(3)
+
+try:
+    nested_handler_context()
+except KeyError as exc:
+    assert repr(exc.__context__) == 'ValueError(1)'
+
 # issue 2092
 out = io.StringIO()
 

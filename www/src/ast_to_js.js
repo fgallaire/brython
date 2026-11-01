@@ -3967,6 +3967,11 @@ $B.ast.Try.prototype.to_js = function(scopes) {
         js += prefix + '}' // close try
         js += `catch(${err}){\n`
         indent()
+        // Whatever way this ends, the exception being handled is again the one
+        // handled around this "try"
+        js += prefix + `var previous${id} = frame.$current_exception\n` +
+              prefix + 'try {\n'
+        indent()
         js += prefix + `$B.set_exc_and_trace(frame, ${err})\n`
         if (has_else) {
             js += prefix + `failed${id} = true\n`
@@ -4001,8 +4006,6 @@ $B.ast.Try.prototype.to_js = function(scopes) {
             }
             js += add_body(handler.body, scopes) + '\n'
             if (! ($B.last(handler.body) instanceof $B.ast.Return)) {
-                // delete current exception
-                js += prefix + '$B.del_exc(frame)\n'
                 js += prefix + `$B.frame_obj = save_frame_obj_${id}\n`
             }
             dedent()
@@ -4014,6 +4017,10 @@ $B.ast.Try.prototype.to_js = function(scopes) {
         }
         // close last if
         js += prefix + '}\n'
+        dedent()
+        js += prefix + '} finally {\n' +
+              prefix + tab + `frame.$current_exception = previous${id}\n` +
+              prefix + '}\n'
         dedent()
     }
     if (has_else || has_finally) {
