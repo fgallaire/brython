@@ -468,9 +468,10 @@ var floating_point_format = function(value, upper, flags) {
 }
 
 var roundDownToFixed = $B.roundDownToFixed = function(v, d) {
-    if (d == 0 && v.toString().indexOf('e') > -1) {
-        // with precision 0, never include "e"
-        return BigInt(v).toString()
+    if (Math.abs(v) >= 1e21) {
+        // toFixed answers with an "e" from there, and a float so large is an
+        // integer
+        return BigInt(v).toString() + (d > 0 ? '.' + '0'.repeat(d) : '')
     }
     const mul = Math.pow(10, d)
     var is_neg = v < 0
