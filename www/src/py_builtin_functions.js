@@ -2089,6 +2089,21 @@ _b_.sorted = function() {
 
 // str() defined in py_string.js
 
+// A sum of floats by Neumaier's improved Kahan-Babuska: what each addition loses
+// is kept in lo, and added back at the end
+function cs_add(sum, x) {
+    var t = sum.hi + x
+    sum.lo += Math.abs(sum.hi) >= Math.abs(x) ?
+        (sum.hi - t) + x :
+        (x - t) + sum.hi
+    sum.hi = t
+}
+
+function cs_value(sum) {
+    // what an infinite sum loses is a NaN, and it is not added back
+    return sum.lo && isFinite(sum.lo) ? sum.hi + sum.lo : sum.hi
+}
+
 _b_.sum = function() {
     var $ = $B.args('sum', 2, {iterable: null, start: null},
                 arguments, {start: 0}, null, null)
@@ -2100,21 +2115,86 @@ _b_.sum = function() {
             " [use b''.join(seq) instead]")
     }
 
-    var res = start
+    var res = start,
+        done = {},
+        item,
+        add = (x, y) => $B.rich_op('__add__', x, y),
+        take = () => {
+            try {
+                return next(iterable)
+            } catch (err) {
+                if ($B.is_exc(err, [_b_.StopIteration])) {
+                    return done
+                }
+                throw err
+            }
+        }
     iterable = iter(iterable)
-    while (true) {
-        try {
-            var _item = next(iterable)
-            res = $B.rich_op('__add__', res, _item)
-        } catch (err) {
-           if ($B.is_exc(err, [_b_.StopIteration])) {
-               break
-           } else {
-               throw err
-           }
+
+    // Each stage holds until an item it can't take, and gives what the sum then
+    // is to the next one
+    if ($B.get_class(res) === _b_.int) {
+        while (true) {
+            item = take()
+            if (item === done) {
+                return res
+            }
+            res = add(res, item)
+            if ($B.get_class(item) !== _b_.int &&
+                    $B.get_class(item) !== _b_.bool) {
+                break
+            }
         }
     }
-    return res
+
+    if ($B.get_class(res) === _b_.float) {
+        let re = {hi: res.value, lo: 0}
+        while (true) {
+            item = take()
+            if (item === done) {
+                return $B.fast_float(cs_value(re))
+            }
+            if ($B.get_class(item) === _b_.float) {
+                cs_add(re, item.value)
+            } else if ($B.$isinstance(item, _b_.int)) {
+                cs_add(re, _b_.int.nb_float(item).value)
+            } else {
+                res = add($B.fast_float(cs_value(re)), item)
+                break
+            }
+        }
+    }
+
+    if ($B.get_class(res) === _b_.complex) {
+        let re = {hi: res.real.value, lo: 0},
+            im = {hi: res.imag.value, lo: 0},
+            total = () => $B.make_complex(cs_value(re), cs_value(im))
+        while (true) {
+            item = take()
+            if (item === done) {
+                return total()
+            }
+            if ($B.get_class(item) === _b_.complex) {
+                cs_add(re, item.real.value)
+                cs_add(im, item.imag.value)
+            } else if ($B.$isinstance(item, _b_.int)) {
+                cs_add(re, _b_.int.nb_float(item).value)
+            } else if ($B.$isinstance(item, _b_.float)) {
+                cs_add(re, $B.float_value(item).value)
+            } else {
+                res = add(total(), item)
+                break
+            }
+        }
+    }
+
+    while (true) {
+        item = take()
+        if (item === done) {
+            return res
+        }
+        res = add(res, item)
+    }
 }
 
 var $$super = _b_.super

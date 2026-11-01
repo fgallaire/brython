@@ -649,6 +649,21 @@ assertRaises(TypeError, f)
 
 # sum with booleans
 assert sum([True, False]) == 1
+
+# sum of floats, with what each addition loses added back at the end
+assert sum([0.1] * 10) == 1.0
+assert sum([0.1] * 10, 0.0) == 1.0
+assert sum([1e100, 1.0, -1e100, 1.0]) == 2.0
+assert sum([1, 0.1, 0.2]) == 1.3
+assert sum([0.1, 2, True]) == 3.1
+assert str(sum([float("inf"), float("-inf")])) == 'nan'
+assert sum([1e100, 2 ** 56, 1.0, -1e100]) == 2 ** 56
+assert sum([1e100, 2, -1e100]) == 2.0
+assert sum([0.1 + 0j] * 10) == 1 + 0j
+assert sum([1j] + [0.1] * 10) == 1 + 1j
+assert sum([1e100 + 0j, 2, -1e100 + 0j]) == 2 + 0j
+assert sum([1e100, 10 ** 30, -1e100]) == 1e30
+
 assert 1.2 + True == 2.2
 
 # issue #392
