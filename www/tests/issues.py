@@ -2910,6 +2910,17 @@ assertRaises(ValueError, exec,
 assertRaises(ValueError, exec,
     "list(zip(range(5), ['fee', 'fi', 'fo', 'fum'], strict=True))")
 
+for args, message in [
+        (([1, 2], [1]), "zip() argument 2 is shorter than argument 1"),
+        (([1], [1, 2]), "zip() argument 2 is longer than argument 1"),
+        (([1, 2], [1, 2], [1]), "zip() argument 3 is shorter than arguments 1-2"),
+        (([1], [1], [1, 2]), "zip() argument 3 is longer than arguments 1-2")]:
+    try:
+        list(zip(*args, strict=True))
+        raise AssertionError('should have raised ValueError')
+    except ValueError as exc:
+        assert str(exc) == message
+
 # issue 1816
 assertRaises(SyntaxError, exec, '@x = 123')
 

@@ -2394,15 +2394,16 @@ _b_.zip.tp_iternext = function*(self){
         var v = self.iters[i].next()
         if (v.done) {
             if (self.strict) {
+                var plural = n => n == 1 ? ' 1' : `s 1-${n}`
                 if (i > 0) {
                     $B.RAISE(_b_.ValueError,
-                        `zip() argument ${i + 1} is longer than argument ${i}`)
+                        `zip() argument ${i + 1} is shorter than argument${plural(i)}`)
                 } else {
                     for (var j = 1; j < len; j++) {
                         var v1 = self.iters[j].next()
                         if (! v1.done) {
                             $B.RAISE(_b_.ValueError,
-                                `zip() argument ${j + 1} is longer than argument ${i + 1}`)
+                                `zip() argument ${j + 1} is longer than argument${plural(j)}`)
                         }
                     }
                 }
