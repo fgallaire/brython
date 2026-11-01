@@ -780,6 +780,15 @@ function make_arguments_parser(f) {
                         $B.RAISE(_b_.TypeError, 'keywords must be strings')
                     }
                 }
+                if (seen !== null) {
+                    if (seen.has(key)) {
+                        var func = infos[$B.func_attrs.__module__] + '.' +
+                            infos[$B.func_attrs.__qualname__]
+                        $B.RAISE(_b_.TypeError, `${func}() got multiple ` +
+                            `values for keyword argument '${key}'`)
+                    }
+                    seen.add(key)
+                }
                 var index = arg_names.indexOf(key)
                 if (index == -1) {
                     if (kwarg) {
@@ -815,7 +824,9 @@ function make_arguments_parser(f) {
                 }
             }
 
-            var elt = last_arg
+            var elt = last_arg,
+                // only a ** can repeat a name
+                seen = elt[$B.KW].length > 1 ? new Set() : null
             for (let key in elt[$B.KW][0]) {
                 add_key(key, elt[$B.KW][0][key])
             }

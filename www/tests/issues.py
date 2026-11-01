@@ -1652,6 +1652,23 @@ try:
 except TypeError:
     pass
 
+# a name repeated by ** is refused
+def repeated_kw(**kw):
+    return kw
+
+def repeated_arg(a):
+    return a
+
+for call in [
+        lambda: repeated_kw(x=1, **{'x': 2}),
+        lambda: repeated_kw(**{'x': 1}, **{'x': 2}),
+        lambda: repeated_arg(a=1, **{'a': 2})]:
+    try:
+        call()
+        raise Exception("should have raised TypeError")
+    except TypeError as exc:
+        assert "() got multiple values for keyword argument '" in str(exc)
+
 r = range(2)
 t = *r, *range(2), 4
 assert t == (0, 1, 0, 1, 4)
