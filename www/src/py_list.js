@@ -885,7 +885,7 @@ list_funcs.remove = function(self) {
             return _b_.None
         }
     }
-    $B.RAISE(_b_.ValueError, _b_.str.$factory($.x) + " is not in list")
+    $B.RAISE(_b_.ValueError, "list.remove(x): x not in list")
 }
 
 list_funcs.reverse = function(self) {

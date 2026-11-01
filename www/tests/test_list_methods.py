@@ -24,6 +24,12 @@ assert x.index('u')==3
 x.remove('tail')
 assert x==['a',[0,1],'u','v']
 
+try:
+    x.remove('tail')
+    raise AssertionError('should have raised ValueError')
+except ValueError as exc:
+    assert str(exc) == 'list.remove(x): x not in list'
+
 x.pop()
 assert x==['a',[0,1],'u']
 
