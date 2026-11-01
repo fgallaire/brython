@@ -186,6 +186,175 @@ def f(src):
 assert f("1 / 0") == ['zero', 'end']
 assert f("x = 0") == ['no exception', 'end']
 
+# a group's split() and subgroup()
+def shape(exc):
+    if exc is None:
+        return None
+    if isinstance(exc, BaseExceptionGroup):
+        return (exc.message, [shape(one) for one in exc.exceptions])
+    return repr(exc)
+
+def group():
+    return ExceptionGroup("g",
+        [ValueError(1), TypeError(2), ExceptionGroup("n", [ValueError(3), KeyError(4)])])
+
+assert [shape(one) for one in group().split(ValueError)] == [
+    ('g', ['ValueError(1)', ('n', ['ValueError(3)'])]),
+    ('g', ['TypeError(2)', ('n', ['KeyError(4)'])])]
+assert [shape(one) for one in group().split((ValueError, KeyError))] == [
+    ('g', ['ValueError(1)', ('n', ['ValueError(3)', 'KeyError(4)'])]),
+    ('g', ['TypeError(2)'])]
+assert shape(group().subgroup(lambda e: isinstance(e, KeyError))) == \
+    ('g', [('n', ['KeyError(4)'])])
+assert group().subgroup(OSError) is None
+g = group()
+assert g.split(Exception) == (g, None)
+assert_raises(TypeError, g.split, 1)
+assert_raises(TypeError, ExceptionGroup, 1, [ValueError()])
+
+g.add_note('note')
+match, rest = g.split(ValueError)
+assert match.__notes__ == rest.__notes__ == ['note']
+assert match.__notes__ is not g.__notes__
+
+class MyGroup(ExceptionGroup):
+    def derive(self, excs):
+        return MyGroup(self.message, excs)
+
+assert [type(one) for one in MyGroup("m", [ValueError(1), TypeError(2)]).split(ValueError)] \
+    == [MyGroup, MyGroup]
+
+# except* runs a handler once, on what it takes of the group
+def except_star(raised):
+    seen = []
+    try:
+        try:
+            raise raised
+        except* ValueError as e:
+            seen.append(('value', shape(e)))
+            assert sys.exception() is e
+        except* (TypeError, KeyError) as e:
+            seen.append(('type', shape(e)))
+        else:
+            seen.append('else')
+    except BaseException as escaped:
+        seen.append(('escaped', shape(escaped)))
+    return seen
+
+assert except_star(group()) == [
+    ('value', ('g', ['ValueError(1)', ('n', ['ValueError(3)'])])),
+    ('type', ('g', ['TypeError(2)', ('n', ['KeyError(4)'])]))]
+assert except_star(ExceptionGroup("g", [ValueError(1), ValueError(2)])) == [
+    ('value', ('g', ['ValueError(1)', 'ValueError(2)']))]
+assert except_star(ExceptionGroup("g", [ValueError(1), OSError(2)])) == [
+    ('value', ('g', ['ValueError(1)'])),
+    ('escaped', ('g', ['OSError(2)']))]
+# an exception that is no group is wrapped when taken, and left as it is otherwise
+assert except_star(ValueError(1)) == [('value', ('', ['ValueError(1)']))]
+assert except_star(OSError(1)) == [('escaped', 'OSError(1)')]
+
+g = ExceptionGroup("g", [ValueError(1)])
+try:
+    raise g
+except* Exception as e:
+    assert e is g
+
+# the handlers all run, then what they raised is raised, with what remains
+def escaping(handlers):
+    try:
+        handlers()
+    except BaseException as escaped:
+        return shape(escaped)
+
+def one_raises():
+    try:
+        raise ExceptionGroup("g", [ValueError(1), KeyError(2)])
+    except* ValueError:
+        raise OSError("new")
+
+assert escaping(one_raises) == ('', ["OSError('new')", ('g', ['KeyError(2)'])])
+
+def both_raise():
+    try:
+        raise ExceptionGroup("g", [ValueError(1), TypeError(2)])
+    except* ValueError:
+        raise OSError("one")
+    except* TypeError:
+        raise KeyError("two")
+
+assert escaping(both_raise) == ('', ["OSError('one')", "KeyError('two')"])
+
+def reraises():
+    try:
+        raise ExceptionGroup("g", [ValueError(1), TypeError(2), OSError(3)])
+    except* ValueError:
+        raise
+    except* TypeError:
+        pass
+
+assert escaping(reraises) == ('g', ['ValueError(1)', 'OSError(3)'])
+
+def reraises_and_raises():
+    try:
+        raise ExceptionGroup("g", [ValueError(1), TypeError(2)])
+    except* ValueError:
+        raise
+    except* TypeError:
+        raise OSError("new")
+
+assert escaping(reraises_and_raises) == ('', ["OSError('new')", ('g', ['ValueError(1)'])])
+
+def reraises_naked():
+    try:
+        raise ValueError(1)
+    except* ValueError:
+        raise
+
+assert escaping(reraises_naked) == ('', ['ValueError(1)'])
+
+# the types of except*
+def star_group():
+    try:
+        raise ValueError(1)
+    except* (ValueError, ExceptionGroup):
+        pass
+
+assert_raises(TypeError, star_group,
+    msg='catching ExceptionGroup with except* is not allowed. Use except instead.')
+
+def star_not_a_type():
+    try:
+        raise ValueError(1)
+    except* 1:
+        pass
+
+assert_raises(TypeError, star_not_a_type,
+    msg='catching classes that do not inherit from BaseException is not allowed')
+
+# the name is unbound after the handler
+def star_name():
+    try:
+        raise ValueError(1)
+    except* ValueError as e:
+        pass
+    return e
+
+assert_raises(UnboundLocalError, star_name)
+
+jump_error = "'break', 'continue' and 'return' cannot appear in an except* block"
+for jump in ["for i in []:\n  try:\n    pass\n  except* ValueError:\n    break\n",
+             "for i in []:\n  try:\n    pass\n  except* ValueError:\n    continue\n",
+             "def f():\n  try:\n    pass\n  except* ValueError:\n    if 1:\n      return\n"]:
+    try:
+        compile(jump, 'x', 'exec')
+        raise AssertionError('should have raised SyntaxError')
+    except SyntaxError as exc:
+        assert exc.msg == jump_error
+
+# a loop or a function inside the handler has its own jumps
+compile("try:\n  pass\nexcept* ValueError:\n  for i in []:\n    break\n", 'x', 'exec')
+compile("try:\n  pass\nexcept* ValueError:\n  def f():\n    return 1\n", 'x', 'exec')
+
 # PEP 678 : Enriching Exceptions with Notes
 try:
     1 / 0

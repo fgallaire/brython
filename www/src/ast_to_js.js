@@ -4068,6 +4068,33 @@ $B.ast.Try.prototype.to_js = function(scopes) {
     return js
 }
 
+function check_except_star_body(statements, in_loop) {
+    // A handler that runs to its end is what lets the next one run
+    for (var statement of statements) {
+        if (statement instanceof $B.ast.Return ||
+                (! in_loop && (statement instanceof $B.ast.Break ||
+                               statement instanceof $B.ast.Continue))) {
+            compiler_error(statement, "'break', 'continue' and 'return' " +
+                "cannot appear in an except* block")
+        }
+        if (statement instanceof $B.ast.FunctionDef ||
+                statement instanceof $B.ast.AsyncFunctionDef ||
+                statement instanceof $B.ast.ClassDef) {
+            continue
+        }
+        var is_loop = statement instanceof $B.ast.For ||
+                      statement instanceof $B.ast.AsyncFor ||
+                      statement instanceof $B.ast.While
+        check_except_star_body(statement.body ?? [], in_loop || is_loop)
+        for (var block of [statement.orelse, statement.finalbody]) {
+            check_except_star_body(block ?? [], in_loop)
+        }
+        for (var part of [...(statement.handlers ?? []), ...(statement.cases ?? [])]) {
+            check_except_star_body(part.body, in_loop)
+        }
+    }
+}
+
 $B.ast.TryStar.prototype.to_js = function(scopes) {
     // PEP 654 try...except*...
     var id = make_id(),
@@ -4085,9 +4112,7 @@ $B.ast.TryStar.prototype.to_js = function(scopes) {
 
     // Save execution stack in case there are return statements and a finally
     // block
-    if (has_finally) {
-        js += prefix + `var save_frame_obj_${id} = $B.frame_obj\n`
-    }
+    js += prefix + `var save_frame_obj_${id} = $B.frame_obj\n`
     if (has_else) {
         js += prefix + `var failed${id} = false\n`
     }
@@ -4096,59 +4121,61 @@ $B.ast.TryStar.prototype.to_js = function(scopes) {
     scopes.push(try_scope)
     js += add_body(this.body, scopes) + '\n'
     if (has_except_handlers) {
-        var err = 'err' + id
+        var err = 'err' + id,
+            split = 'split' + id,
+            matches = 'matches' + id,
+            raised = 'raised' + id,
+            previous = 'previous' + id
         dedent()
         js += prefix + '}' // close try
         js += `catch(${err}){\n`
         indent()
-        js += prefix + `$B.set_exc_and_trace(frame, ${err})\n` +
-              prefix + `if (! $B.$isinstance(${err}, _b_.BaseExceptionGroup)) {\n` +
-              prefix + tab + `${err} = _b_.BaseExceptionGroup.$factory(_b_.None, [${err}])\n` +
-              prefix + '}\n' +
-              prefix + `function fake_split(exc, condition) {\n` +
-              prefix + tab + `return condition(exc) ? ` +
-                  `$B.fast_tuple([exc, _b_.None]) : $B.fast_tuple([_b_.None, exc])\n` +
-              prefix + '}\n'
+        js += prefix + `var ${previous} = frame.$current_exception\n` +
+              prefix + `$B.set_exc_and_trace(frame, ${err})\n` +
+              prefix + `${err} = frame.$current_exception\n` +
+              prefix + `$B.frame_obj = save_frame_obj_${id}\n` +
+              prefix + `var orig${id} = ${err},\n` +
+              prefix + tab + `${matches} = [],\n` +
+              prefix + tab + `${raised} = []\n`
         if (has_else) {
             js += prefix + `failed${id} = true\n`
         }
         for (var handler of this.handlers) {
-            js += prefix + `$B.set_lineno(frame, ${handler.lineno})\n`
-            if (! $B.is_none(handler.type)) {
-                js += prefix + "var condition = function(exc) {\n" +
-                      prefix + tab + "return $B.$isinstance(exc, " +
+            check_except_star_body(handler.body, false)
+            js += prefix + `$B.set_lineno(frame, ${handler.lineno})\n` +
+                  prefix + `var ${split} = $B.except_star_split(${err}, ` +
                       `${$B.js_from_ast(handler.type, scopes)})\n` +
-                      prefix + "}\n" +
-                      prefix + `var klass = $B.get_class(${err}),\n`
-                indent()
-                js += prefix + `split_method = $B.$getattr(klass, 'split'),\n` +
-                      prefix + `split = $B.$call(split_method, ${err}, condition),\n` +
-                      prefix + 'matching = split[0],\n' +
-                      prefix + 'rest = split[1]\n'
-                dedent()
-                js += prefix + 'if (matching !== _b_.None) {\n'
-                indent()
-                js += prefix + 'for (var err of matching.excs) {\n'
-                indent()
-                if (! $B.is_none(handler.name)) {
-                    bind(handler.name, scopes)
-                    var mangled = mangle(scopes, try_scope, handler.name)
-                    js += prefix + `locals.${mangled} = ${err}\n`
-                }
-                js += add_body(handler.body, scopes) + '\n'
-                if (! ($B.last(handler.body) instanceof $B.ast.Return)) {
-                    // delete current exception
-                    js += prefix + '$B.del_exc(frame)\n'
-                }
-                dedent()
-                js += prefix + '}\n'
-                dedent()
-                js += prefix + '}\n'
-                js += prefix + `${err} = rest\n`
+                  prefix + `${err} = ${split}[1]\n` +
+                  prefix + `if (${split}[0] !== _b_.None) {\n`
+            indent()
+            js += prefix + `${matches}.push(${split}[0])\n` +
+                  prefix + `$B.set_exc(${split}[0], frame)\n`
+            var mangled = null
+            if (! $B.is_none(handler.name)) {
+                bind(handler.name, scopes)
+                mangled = mangle(scopes, try_scope, handler.name)
+                js += prefix + `locals.${mangled} = ${split}[0]\n`
             }
+            js += prefix + 'try {\n'
+            indent()
+            js += add_body(handler.body, scopes) + '\n'
+            dedent()
+            js += prefix + `} catch(${raised}_err) {\n` +
+                  prefix + tab + `${raised}.push($B.exception(${raised}_err))\n` +
+                  prefix + tab + `$B.frame_obj = save_frame_obj_${id}\n`
+            if (mangled !== null) {
+                js += prefix + '} finally {\n' +
+                      prefix + tab + `delete locals.${mangled}\n`
+            }
+            js += prefix + '}\n'
+            dedent()
+            js += prefix + '}\n'
         }
-        js += prefix + `if (${err} !== _b_.None) {\n` +
-              prefix + tab + `throw ${err}\n` +
+        js += prefix + `frame.$current_exception = ${previous}\n` +
+              prefix + `var final${id} = $B.except_star_raised(orig${id}, ` +
+                  `${matches}, ${raised}, ${err})\n` +
+              prefix + `if (final${id} !== _b_.None) {\n` +
+              prefix + tab + `throw final${id}\n` +
               prefix + '}\n'
         dedent()
     }

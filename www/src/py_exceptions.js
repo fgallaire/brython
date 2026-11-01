@@ -1208,6 +1208,11 @@ _b_.BaseExceptionGroup.tp_new = function(cls, args, kw) {
     var [message, exceptions] = $B.unpack_args('BaseExceptionGroup', args,
         ['message', 'exceptions'], {})
 
+    if (! $B.is_str(message)) {
+        $B.RAISE(_b_.TypeError, "BaseExceptionGroup.__new__() argument 1 " +
+            `must be str, not ${$B.class_name(message)}`)
+    }
+
     if (! $B.is_sequence(exceptions)) {
         $B.RAISE(_b_.TypeError,
             "second argument (exceptions) must be a sequence")
@@ -1275,58 +1280,142 @@ BaseExceptionGroup_funcs.derive = function(self, excs) {
     return $B.$call(_b_.BaseExceptionGroup, ...init_args)
 }
 
+function is_exception_class(obj) {
+    return $B.is_type(obj) && _b_.issubclass(obj, _b_.BaseException)
+}
+
+function group_matcher(condition) {
+    // The condition of split() and subgroup() as a test on an exception
+    if ($B.$isinstance(condition, _b_.tuple) ?
+            condition.every(is_exception_class) :
+            is_exception_class(condition)) {
+        return exc => $B.is_exc(exc, condition)
+    }
+    if (_b_.callable(condition) && ! $B.is_type(condition)) {
+        return exc => $B.$bool($B.$call(condition, exc))
+    }
+    $B.RAISE(_b_.TypeError, "expected an exception type, a tuple of " +
+        "exception types, or a callable (other than a class)")
+}
+
+function group_subset(group, excs) {
+    // A group of the kind of "group", with its metadata, holding "excs"
+    if (excs.length == 0) {
+        return _b_.None
+    }
+    var res = $B.$call($B.$getattr(group, 'derive'), $B.$list(excs))
+    if (! $B.$isinstance(res, _b_.BaseExceptionGroup)) {
+        $B.RAISE(_b_.TypeError,
+            "derive must return an instance of BaseExceptionGroup")
+    }
+    res.__cause__ = group.__cause__
+    res.__context__ = group.__context__
+    res.__traceback__ = group.__traceback__
+    var notes = $B.$getattr(group, '__notes__', $B.NULL)
+    if (notes !== $B.NULL && $B.is_sequence(notes)) {
+        $B.$setattr(res, '__notes__', $B.$list(Array.from($B.make_js_iterator(notes))))
+    }
+    return res
+}
+
+function group_split(exc, match) {
+    // [matching, rest], either of them None when nothing goes there
+    if (match(exc)) {
+        return [exc, _b_.None]
+    }
+    if (! $B.$isinstance(exc, _b_.BaseExceptionGroup)) {
+        return [_b_.None, exc]
+    }
+    var matching = [],
+        rest = []
+    for (var one of exc.excs) {
+        var parts = group_split(one, match)
+        if (parts[0] !== _b_.None) {
+            matching.push(parts[0])
+        }
+        if (parts[1] !== _b_.None) {
+            rest.push(parts[1])
+        }
+    }
+    return [group_subset(exc, matching), group_subset(exc, rest)]
+}
+
 BaseExceptionGroup_funcs.split = function(self, condition) {
-    // condition is a function applied to exceptions
-    // returns (matching_be, non_matching_be)
-    var matching_excs = [],
-        non_matching_excs = []
-    for (var exc of self.excs) {
-        if ($B.$isinstance(exc, _b_.BaseExceptionGroup)) {
-            var subsplit = BaseExceptionGroup_funcs.split(exc, condition),
-                matching = subsplit[0],
-                non_matching = subsplit[1]
-            if (matching === _b_.None) {
-                non_matching_excs.push(exc)
-            } else if (matching.excs.length == exc.excs.length) {
-                matching_excs.push(exc)
-            } else {
-                if (matching.excs.length > 0) {
-                    matching_excs = matching_excs.concat(matching)
-                }
-                if (non_matching.excs.length > 0) {
-                    non_matching_excs = non_matching_excs.concat(non_matching)
-                }
-            }
-        } else if (condition(exc)) {
-            matching_excs.push(exc)
-        } else {
-            non_matching_excs.push(exc)
-        }
-    }
-    if (matching_excs.length == 0) {
-        matching_excs = _b_.None
-    }
-    if (non_matching_excs.length == 0) {
-        non_matching_excs = _b_.None
-    }
-    var res = []
-    for (var item of [matching_excs, non_matching_excs]) {
-        if (item === _b_.None) {
-            res.push(item)
-        } else {
-            var eg = _b_.BaseExceptionGroup.tp_new(_b_.BaseExceptionGroup,
-                [self.msg, $B.$list(item)])
-            eg.__cause__ = self.__cause__
-            eg.__context__ = self.__context__
-            eg.__traceback__ = self.__traceback__
-            res.push(eg)
-        }
-    }
-    return $B.fast_tuple(res)
+    return $B.fast_tuple(group_split(self, group_matcher(condition)))
 }
 
 BaseExceptionGroup_funcs.subgroup = function(self, condition) {
-    return BaseExceptionGroup_funcs.split(self, condition)[0]
+    return group_split(self, group_matcher(condition))[0]
+}
+
+$B.except_star_split = function(exc, type) {
+    // What the handler "except* type" takes of the exception left by the
+    // handlers before it, and what it leaves
+    for (var one of $B.$isinstance(type, _b_.tuple) ? type : [type]) {
+        if (! is_exception_class(one)) {
+            $B.RAISE(_b_.TypeError, "catching classes that do not inherit " +
+                "from BaseException is not allowed")
+        }
+    }
+    for (var one of $B.$isinstance(type, _b_.tuple) ? type : [type]) {
+        if (_b_.issubclass(one, _b_.BaseExceptionGroup)) {
+            $B.RAISE(_b_.TypeError, "catching ExceptionGroup with except* " +
+                "is not allowed. Use except instead.")
+        }
+    }
+    if (exc === _b_.None) {
+        return [_b_.None, _b_.None]
+    }
+    var is_group = $B.$isinstance(exc, _b_.BaseExceptionGroup)
+    if ($B.is_exc(exc, type)) {
+        if (is_group) {
+            return [exc, _b_.None]
+        }
+        var wrapped = _b_.BaseExceptionGroup.$factory('', [exc])
+        wrapped.__traceback__ = exc.__traceback__
+        return [wrapped, _b_.None]
+    }
+    if (is_group) {
+        return $B.$call($B.$getattr(exc, 'split'), type)
+    }
+    return [_b_.None, exc]
+}
+
+function group_leaves(exc, leaves) {
+    if ($B.$isinstance(exc, _b_.BaseExceptionGroup)) {
+        for (var one of exc.excs) {
+            group_leaves(one, leaves)
+        }
+    } else {
+        leaves.add(exc)
+    }
+}
+
+$B.except_star_raised = function(orig, matches, raised, rest) {
+    // What an except* raises when its handlers have run: what was raised anew,
+    // beside what remains of the original group, its structure kept
+    var excs = rest === _b_.None ? raised : [...raised, rest]
+    if (! $B.$isinstance(orig, _b_.BaseExceptionGroup)) {
+        return excs[0] ?? _b_.None
+    }
+    var reraised = new Set(),
+        anew = []
+    for (var exc of excs) {
+        if (exc === rest || matches.includes(exc)) {
+            group_leaves(exc, reraised)
+        } else {
+            anew.push(exc)
+        }
+    }
+    var remains = group_split(orig, exc => reraised.has(exc))[0]
+    if (anew.length == 0) {
+        return remains
+    }
+    if (remains !== _b_.None) {
+        anew.push(remains)
+    }
+    return anew.length == 1 ? anew[0] :
+        _b_.BaseExceptionGroup.$factory('', anew)
 }
 
 _b_.BaseExceptionGroup.classmethods = ["__class_getitem__"]
