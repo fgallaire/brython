@@ -231,6 +231,10 @@ assert AttributeError("nope").name is None
 assert AttributeError("nope").obj is None
 assert StopIteration().value is None
 assert StopIteration(5).value == 5
+# the details of a SyntaxError are kept as given, None included
+assert SyntaxError("m", (None, 3, 1, "x")).filename is None
+assert str(SyntaxError("m", (None, 3, 1, "x"))) == "m (line 3)"
+assert str(SyntaxError("m", ("f.py", None, 1, "x"))) == "m (f.py)"
 # a failed lookup still sets it
 try:
     undefined_name_2940

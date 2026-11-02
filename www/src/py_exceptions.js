@@ -782,21 +782,9 @@ _b_.SyntaxError.tp_init = function() {
         }
     }
     let attrs = ['filename', 'lineno', 'offset', 'text', 'end_lineno',
-                 'end_offset'],
-        expected_types = [_b_.str, _b_.int, _b_.int, _b_.str, _b_.int,
-                 _b_.int]
+                 'end_offset']
     for (var i = 0; i < attrs.length; i++) {
-        if (details[i] !== undefined) {
-            if (! $B.$isinstance(details[i], expected_types[i])) {
-                $B.RAISE(_b_.TypeError, `item #${i + 1} (${attrs[i]}) ` +
-                    `of the second argument of SyntaxError should be ` +
-                    `'${expected_types[i].__name__}', not ` +
-                    `'${$B.class_name(details[i])}'`)
-            }
-            _self[attrs[i]] = details[i]
-        } else {
-            _self[attrs[i]] = _b_.None
-        }
+        _self[attrs[i]] = details[i] !== undefined ? details[i] : _b_.None
     }
 }
 
