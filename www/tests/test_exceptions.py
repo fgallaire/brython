@@ -225,6 +225,12 @@ try:
 except KeyError as e:
   assert str(e) == "'missing'"
 
+# OSError(errno, strerror) is the subclass its errno names
+import errno
+assert type(OSError(errno.ENOENT, "gone")) is FileNotFoundError
+assert type(OSError(errno.EACCES, "denied")) is PermissionError
+assert type(OSError(errno.ENOENT)) is OSError
+
 # issue 2940 - an exception member that was never set reads as None
 assert NameError("boom").name is None
 assert AttributeError("nope").name is None

@@ -834,6 +834,29 @@ _b_.EnvironmentError = _b_.OSError
 _b_.WindowsError = _b_.OSError
 _b_.IOError = _b_.OSError
 
+// OSError(errno, strerror, ...) is the subclass its errno names, by the values
+// of the errno module
+var errno_subclasses = {
+    1: 'PermissionError', 2: 'FileNotFoundError', 3: 'ProcessLookupError',
+    4: 'InterruptedError', 10: 'ChildProcessError', 11: 'BlockingIOError',
+    13: 'PermissionError', 17: 'FileExistsError', 20: 'NotADirectoryError',
+    21: 'IsADirectoryError', 32: 'BrokenPipeError',
+    10035: 'BlockingIOError', 10036: 'BlockingIOError',
+    10037: 'BlockingIOError', 10053: 'ConnectionAbortedError',
+    10054: 'ConnectionResetError', 10058: 'BrokenPipeError',
+    10060: 'TimeoutError', 10061: 'ConnectionRefusedError'
+}
+
+_b_.OSError.tp_new = function(cls, args, kw) {
+    if (cls === _b_.OSError && args.length >= 2 && args.length <= 5) {
+        var errno = args[0] === true ? 1 : args[0]
+        if (typeof errno == 'number' && Object.hasOwn(errno_subclasses, errno)) {
+            cls = _b_[errno_subclasses[errno]]
+        }
+    }
+    return _b_.BaseException.tp_new(cls, args, kw)
+}
+
 // special case for KeyError.__str__ (cf. issue #2582)
 _b_.KeyError.tp_str = function(self) {
     if (self.args.length == 1) {
