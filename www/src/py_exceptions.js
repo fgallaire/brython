@@ -830,6 +830,55 @@ _b_.SyntaxError.tp_members = [
 
 $B.set_func_names(_b_.SyntaxError, 'builtins')
 
+// OSError(errno, strerror[, filename[, winerror[, filename2]]]): with 2 to 5
+// arguments, the first two are errno and strerror; a filename other than None
+// leaves only those two in args
+_b_.OSError.tp_init = function() {
+    var $ = $B.args('OSError', 1, {self: null}, arguments, null, 'args', 'kw'),
+        self = $.self,
+        args = $.args
+    check_no_keywords(self, $.kw)
+    _b_.BaseException.tp_init(self, ...args)
+    for (var name of ['errno', 'strerror', 'filename', 'filename2']) {
+        self[name] = _b_.None
+    }
+    self.$errno_given = args.length >= 2 && args.length <= 5
+    if (self.$errno_given) {
+        self.errno = args[0]
+        self.strerror = args[1]
+        if (args.length > 2 && args[2] !== _b_.None) {
+            self.filename = args[2]
+            self.filename2 = args[4] ?? _b_.None
+            self.args = $B.fast_tuple(args.slice(0, 2))
+        }
+    }
+}
+
+_b_.OSError.tp_str = function(self) {
+    var head = `[Errno ${_b_.str.$factory(self.errno)}] ` +
+               _b_.str.$factory(self.strerror)
+    if (self.filename !== _b_.None) {
+        if (self.filename2 !== _b_.None) {
+            return `${head}: ${_b_.repr(self.filename)} -> ` +
+                _b_.repr(self.filename2)
+        }
+        return `${head}: ${_b_.repr(self.filename)}`
+    }
+    if (self.$errno_given) {
+        return head
+    }
+    return _b_.BaseException.tp_str(self)
+}
+
+_b_.OSError.tp_members = [
+    ["errno", $B.TYPES.OBJECT, "errno", 0],
+    ["strerror", $B.TYPES.OBJECT, "strerror", 0],
+    ["filename", $B.TYPES.OBJECT, "filename", 0],
+    ["filename2", $B.TYPES.OBJECT, "filename2", 0]
+]
+
+$B.set_func_names(_b_.OSError, 'builtins')
+
 _b_.EnvironmentError = _b_.OSError
 _b_.WindowsError = _b_.OSError
 _b_.IOError = _b_.OSError

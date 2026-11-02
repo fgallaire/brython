@@ -257,6 +257,13 @@ assert not result_2940.wasSuccessful()
 assert UnicodeEncodeError('utf-8', 'a', 0, 1, 'r').args == \
   ('utf-8', 'a', 0, 1, 'r')
 
+# OSError(errno, strerror[, filename]) sets errno, strerror and filename
+assert str(OSError(2, "gone")) == "[Errno 2] gone"
+assert (OSError(2, "gone").errno, OSError(2, "gone").strerror) == (2, "gone")
+assert str(OSError(2, "gone", "f.txt")) == "[Errno 2] gone: 'f.txt'"
+assert OSError(2, "gone", "f.txt").args == (2, "gone")
+assert OSError("plain").errno is None
+
 # issue reported in PR 2958
 import warnings
 with warnings.catch_warnings(record=True) as w:
