@@ -65,6 +65,34 @@ except* ValueError as group:
     pass
 assert "group" not in globals()
 
+# ... and it is bound and unbound where "global" or "nonlocal" puts it
+def global_handler():
+    global handled_global
+    try:
+        raise ValueError("g")
+    except ValueError as handled_global:
+        return "handled_global" in globals()
+
+assert global_handler() is True
+assert "handled_global" not in globals()
+
+def nonlocal_handler():
+    e = 1
+    def inner():
+        nonlocal e
+        try:
+            raise ValueError("n")
+        except ValueError as e:
+            return type(e).__name__
+    seen = inner()
+    try:
+        e
+    except NameError:
+        return seen, "unbound"
+    return seen, e
+
+assert nonlocal_handler() == ("ValueError", "unbound")
+
 src = """x = 0
 
 def f():

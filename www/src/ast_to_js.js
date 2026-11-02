@@ -3936,14 +3936,20 @@ function handler_to_js(handler, scopes, try_scope, err) {
     if ($B.is_none(handler.name)) {
         return add_body(handler.body, scopes) + '\n'
     }
-    bind(handler.name, scopes)
-    var mangled = mangle(scopes, try_scope, handler.name)
-    var js = prefix + `locals.${mangled} = ${err}\n` + prefix + 'try {\n'
+    // bound and unbound in its own scope, as "name = None; del name"
+    var scope = bind(handler.name, scopes),
+        locals_name = make_scope_name(scopes, scope),
+        mangled = mangle(scopes, try_scope, handler.name),
+        target = `${locals_name}.${mangled}`
+    var js = prefix + `${target} = ${err}\n` + prefix + 'try {\n'
     indent()
     js += add_body(handler.body, scopes) + '\n'
     dedent()
+    scope.locals.delete(mangled)
     return js + prefix + '} finally {\n' +
-        prefix + tab + `delete locals.${mangled}\n` + prefix + '}\n'
+        prefix + tab + `${target} = _b_.None\n` +
+        prefix + tab + `$B.$delete("${mangled}", ${locals_name})\n` +
+        prefix + '}\n'
 }
 
 $B.ast.Try.prototype.to_js = function(scopes) {
