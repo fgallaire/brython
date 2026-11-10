@@ -348,6 +348,15 @@ $B.str_dict_get = function(d, key, _default) {
 }
 
 $B.str_dict_set = function(d, attr, value) {
+    if (attr === '__proto__' && ! Object.hasOwn(d, attr)) {
+        // "__proto__" is a string like any other in Python. `d[attr] = value`
+        // reaches the accessor on Object.prototype and sets the prototype of
+        // the object instead, so the key is defined as an own property, which
+        // every reader of the dictionary's properties then finds
+        Object.defineProperty(d, attr,
+            {value, writable: true, enumerable: true, configurable: true})
+        return
+    }
     d[attr] = value
 }
 
@@ -448,7 +457,7 @@ var $copy_dict = function(left, right) {
     if (! right[KEYS]) {
         if (! left[KEYS]) {
             for (let key in right) {
-                left[key] = right[key]
+                $B.str_dict_set(left, key, right[key])
                 if (left[$B.JSOBJ]) {
                     left[$B.JSOBJ][key] = right[key]
                 }
@@ -767,7 +776,7 @@ dict.$getitem = function(self, key, ignore_missing) {
         }
         $B.RAISE(_b_.KeyError, key)
     }
-    if (fast_string_key(key)) {
+    if (typeof key == 'string') {
         if (Object.hasOwn(self, key)) {
             return self[key]
         }
@@ -887,22 +896,6 @@ dict.$iter_items_reversed = function*(d){
     }
 }
 
-// Whether a key can live as an ordinary property of the dictionary object,
-// which is the fast path for string keys.
-//
-// "__proto__" is a string like any other in Python and cannot: `d[key] = value`
-// reaches the accessor on Object.prototype, so the key never becomes an own
-// property and the value becomes the dictionary's own prototype instead. The
-// entry is lost, and `d["__proto__"]` raises KeyError on a key that was written.
-// It goes to the hash table, exactly as a string parsed as a negative integer
-// already does (issue 2256).
-//
-// Asked in one place because four sites ask it: setting, reading, `setdefault`,
-// and the conversion itself.
-function fast_string_key(key) {
-    return typeof key == 'string' && key !== '__proto__'
-}
-
 function convert_all_str(d) {
     // convert dict with only str keys to regular dict
     // add addtional fields
@@ -926,20 +919,20 @@ dict.$setitem = function(self, key, value, $hash, from_setdefault) {
         self[$B.JSOBJ][key] = value
     }
     var new_str_key
-    if (fast_string_key(key)) {
+    if (typeof key == 'string') {
         // Even if dict is not all-string keys, set self[key]
         new_str_key = ! Object.hasOwn(self, key)
-        self[key] = value
+        $B.str_dict_set(self, key, value)
     }
     if (! self[TABLE]) {
-        if (fast_string_key(key)) {
+        if (typeof key == 'string') {
             var int = parseInt(key)
             if (isNaN(int) || int >= 0) {
                 if (new_str_key) {
                     self[VERSION] = self[VERSION] ?? 0
                     self[VERSION]++
                 }
-                self[key] = value
+                $B.str_dict_set(self, key, value)
                 return _b_.None
             } else {
                 // string parsed as negative integer: insertion order
@@ -1290,9 +1283,9 @@ dict_funcs.setdefault = function(self) {
     _default = _default === undefined ? _b_.None : _default
 
     if (! self[TABLE]) {
-        if (fast_string_key(key)) {
+        if (typeof key == 'string') {
             if (! Object.hasOwn(self, key)) {
-                self[key] = _default
+                $B.str_dict_set(self, key, _default)
             }
             return self[key]
         } else {

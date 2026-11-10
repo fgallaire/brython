@@ -621,7 +621,9 @@ function analyze_block(ste, bound, free, global, typeparams, class_entry) {
     var success = 0
 
     let local = new Set()  /* collect new names bound in block */
-    let scopes = {}  /* collect scopes defined for each name */
+    /* collect scopes defined for each name; with no prototype, so that
+       "__proto__" is a name like any other */
+    let scopes = Object.create(null)
 
     /* Allocate new global, bound and free variable sets.  hese
        sets hold the names visible in nested blocks.  For

@@ -718,13 +718,13 @@ function make_arguments_parser(f) {
             def_obj = {}
             var start_defs = positional_length - defaults.length
             for (var i = start_defs; i < positional_length; i++) {
-                def_obj[arg_names[i]] = defaults[i - start_defs]
+                $B.str_dict_set(def_obj, arg_names[i], defaults[i - start_defs])
             }
         }
         if (kwonly_defs !== _b_.None) {
             def_obj = def_obj ?? {}
             for (var key in kwonly_defs) {
-                def_obj[key] = kwonly_defs[key]
+                $B.str_dict_set(def_obj, key, kwonly_defs[key])
             }
         }
 
@@ -751,12 +751,12 @@ function make_arguments_parser(f) {
 
         if (nb_pos <= positional_length) {
             for (let iarg = 0; iarg < nb_pos; iarg++) {
-                locals[arg_names[iarg]] = args[iarg]
+                $B.str_dict_set(locals, arg_names[iarg], args[iarg])
             }
             filled_pos = nb_pos
         } else {
             for (let iarg = 0; iarg < positional_length; iarg++) {
-                locals[arg_names[iarg]] = args[iarg]
+                $B.str_dict_set(locals, arg_names[iarg], args[iarg])
             }
             filled_pos = positional_length
             if (vararg !== null) {
@@ -810,7 +810,7 @@ function make_arguments_parser(f) {
                         }
                     }
                 } else {
-                    locals[key] = value
+                    $B.str_dict_set(locals, key, value)
                     filled_pos++
                 }
             }
@@ -873,7 +873,7 @@ function make_arguments_parser(f) {
         if (filled_pos < nb_formal) {
             for (let key in def_obj) {
                 if (! locals.hasOwnProperty(key)) {
-                    locals[key] = def_obj[key]
+                    $B.str_dict_set(locals, key, def_obj[key])
                     filled_pos++
                 }
             }

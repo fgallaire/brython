@@ -1301,4 +1301,54 @@ assert type(str.count).__name__ == 'method_descriptor'
 # reported in PR #3031
 assert object.__new__.__module__ is None
 
+# __proto__ is a name like any other: a variable, a parameter, a keyword
+# argument, an attribute
+__proto__ = 1
+assert __proto__ == 1
+
+def proto_global():
+    global __proto__
+    __proto__ += 1
+
+proto_global()
+assert __proto__ == 2
+assert globals()['__proto__'] == 2
+
+def proto_param(__proto__, x=0):
+    return __proto__
+
+assert proto_param(3) == 3
+assert proto_param(__proto__=4) == 4
+
+def proto_default(a, __proto__=5):
+    return __proto__
+
+assert proto_default(1) == 5
+
+def proto_kwargs(**kwargs):
+    return kwargs
+
+assert proto_kwargs(__proto__=6) == {'__proto__': 6}
+assert proto_kwargs(**{'__proto__': 7}) == {'__proto__': 7}
+
+class ProtoClass:
+    __proto__: int = 8
+
+proto_obj = ProtoClass()
+assert ProtoClass.__proto__ == 8
+proto_obj.__proto__ = 9
+assert proto_obj.__proto__ == 9
+assert vars(proto_obj) == {'__proto__': 9}
+setattr(proto_obj, '__proto__', 10)
+assert getattr(proto_obj, '__proto__') == 10
+
+def proto_locals():
+    __proto__ = 11
+    return locals()
+
+assert proto_locals() == {'__proto__': 11}
+
+del __proto__
+assert '__proto__' not in globals()
+
 print('passed all tests...')

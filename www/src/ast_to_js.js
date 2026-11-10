@@ -375,6 +375,18 @@ function reference(scopes, scope, name) {
     return make_scope_name(scopes, scope) + '.' + mangle(scopes, scope, name)
 }
 
+// "__proto__" is a name like any other in Python. In Javascript,
+// `obj.__proto__ = value` and `{__proto__: value}` set the prototype of the
+// object instead, so the name is written as an own property
+function name_store(namespace, name) {
+    return name == '__proto__' ? `$B.own_proto(${namespace}).__proto__` :
+                                 `${namespace}.${name}`
+}
+
+function literal_key(name) {
+    return name == '__proto__' ? '["__proto__"]' : name
+}
+
 function get_binding_scope(name, scopes) {
     var scope = $B.last(scopes),
         up_scope = last_scope(scopes)
@@ -626,6 +638,21 @@ function name_scope(name, scopes) {
 
     var scope_names = make_search_namespaces(scopes)
     return {found: false, resolve: scope_names}
+}
+
+$B.own_proto = function(ns) {
+    // `ns.__proto__ = value` reaches the accessor on Object.prototype, which
+    // sets the namespace's prototype: the name gets an own property first,
+    // unless an object of the namespace's chain defines one of its own
+    var holder = ns
+    while (holder !== null && ! Object.hasOwn(holder, '__proto__')) {
+        holder = Object.getPrototypeOf(holder)
+    }
+    if (holder === Object.prototype) {
+        Object.defineProperty(ns, '__proto__',
+            {value: undefined, writable: true, enumerable: true, configurable: true})
+    }
+    return ns
 }
 
 function resolve_in_namespace(name, ns) {
@@ -1313,11 +1340,11 @@ $B.ast.AnnAssign.prototype.to_js = function(scopes) {
                     ann_str = `$B.$call(FR, '${ann_str}', {[$B.KW]: [{is_class:true}]})`
 
                     if (scope.type == 'class') {
-                        scope.annotate.push(`${mangled}: [${this.lineno}, ` +
+                        scope.annotate.push(`${literal_key(mangled)}: [${this.lineno}, ` +
                             `() => int_format == 2 ? ${ann_str} : ${ann_value}]`)
                     } else {
                         js += prefix +
-                            `locals.$annotations.${mangled} = ` +
+                            `${name_store('locals.$annotations', mangled)} = ` +
                             `[${this.lineno}, () => int_format == 2 ? ` +
                             `${ann_str} :${ann_value}]\n`
                     }
@@ -1326,7 +1353,9 @@ $B.ast.AnnAssign.prototype.to_js = function(scopes) {
                       `'${mangled}', ${ann_value}, ${inum})\n`
                 }
             }
-            let target_ref = name_reference(this.target.id, scopes)
+            let target_ref = mangled == '__proto__' ?
+                name_store(make_scope_name(scopes, scope), mangled) :
+                name_reference(this.target.id, scopes)
             js += prefix + `${target_ref} = ann`
         } else if (this.target instanceof $B.ast.Attribute) {
             js += prefix + `$B.$setattr(${$B.js_from_ast(this.target.value, scopes)}` +
@@ -1625,11 +1654,12 @@ $B.ast.AugAssign.prototype.to_js = function(scopes) {
             // namespace (global or local), not a call to $B.resolve
             let left_scope = scope.resolve == 'global' ?
                 make_globals_name(scopes) : 'locals'
-            js = prefix + `${left_scope}.${this.target.id} = $B.augm_assign(` +
+            js = prefix + `${name_store(left_scope, this.target.id)} = $B.augm_assign(` +
                 make_ref(this.target.id, scopes, scope, this.target) + `, '${iop}', ${value})`
         } else {
-            let ref = `${make_scope_name(scopes, scope.found)}.${this.target.id}`
-            js = prefix + `${ref} = $B.augm_assign(${ref}, '${iop}', ${value})`
+            let namespace = make_scope_name(scopes, scope.found)
+            js = prefix + `${name_store(namespace, this.target.id)} = ` +
+                `$B.augm_assign(${namespace}.${this.target.id}, '${iop}', ${value})`
         }
     } else if (this.target instanceof $B.ast.Subscript) {
         js = prefix + `$B.$setitem((locals.$tg = ${this.target.value.to_js(scopes)}), ` +
@@ -1805,7 +1835,7 @@ function make_args(scopes) {
             }
             kwds.add(keyword.arg)
             named_kwargs.push(
-                `${keyword.arg}: ${$B.js_from_ast(keyword.value, scopes)}`)
+                `${literal_key(keyword.arg)}: ${$B.js_from_ast(keyword.value, scopes)}`)
         } else {
             starred_kwargs.push($B.js_from_ast(keyword.value, scopes))
         }
@@ -2642,7 +2672,7 @@ $B.ast.FunctionDef.prototype.to_js = function(scopes) {
          js += prefix + `if(arguments.length == ${positional.length} && ` +
                    `! _${positional[positional.length -1].arg}?.[$B.KW]){\n` +
                prefix + tab + `var ${locals_name} = locals = ` +
-                   `{${positional.map(x => x.arg + ': _' + x.arg).join(', ')}}\n` +
+                   `{${positional.map(x => literal_key(x.arg) + ': _' + x.arg).join(', ')}}\n` +
                prefix + `} else {\n` +
                prefix + tab + `var ${locals_name} = locals = ` +
                    `$B.args_parser(${name2}, arguments)\n` +
@@ -3724,7 +3754,7 @@ $B.ast.Name.prototype.to_js = function(scopes) {
             scope.freevars.delete(this.id)
         }
         var scope_name = make_scope_name(scopes, scope)
-        return scope_name + '.' + mangle(scopes, scope, this.id)
+        return name_store(scope_name, mangle(scopes, scope, this.id))
     } else if (this.ctx instanceof $B.ast.Load) {
         // special case for name '__debug__' (cf. issue #2541)
         if (this.id == '__debug__') {
