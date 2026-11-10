@@ -527,8 +527,9 @@ $B.get_class = function(obj) {
     if (obj === undefined) {
         return $B.UndefinedType // idem
     }
+    var klass = obj.ob_type
     if (klass?.tp_name !== undefined) {
-        return obj.ob_type
+        return klass
     }
     if (obj[$B.OB_TYPE]) {
         return obj[$B.OB_TYPE]
