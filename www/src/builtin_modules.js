@@ -138,10 +138,12 @@
             DOMEvent:$B.DOMEvent,
             DOMNode: $B.DOMNode,
             load:function(script_url) {
-                // Load and eval() the Javascript file at script_url
+                // Load and eval() the Javascript file at script_url, in the
+                // global scope, as a <script> would run it: a direct eval kept
+                // its declarations in the scope of this strict function
                 var file_obj = $B.builtins.open(script_url)
                 var content = $B.$getattr(file_obj, 'read')()
-                eval(content)
+                globalThis.eval(content)
             },
             load1:function(script_url, callback) {
                 // Load and eval() the Javascript file at script_url
@@ -632,7 +634,7 @@
             // Set the names in array "names" in the Javacript global namespace
             var file_obj = $B.builtins.open(script_url)
             var content = $B.$getattr(file_obj, 'read')()
-            eval(content)
+            globalThis.eval(content)
         },
         Math: self.Math && $B.jsobj2pyobj(self.Math),
         NULL: null,

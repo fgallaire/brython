@@ -587,4 +587,9 @@ window.L = L
 window.eval(js_src)
 assert type(window.A) is list
 
+# A script browser.load runs declares its names in the global scope
+import browser
+browser.load("global_load.js")
+assert window.brython_global_load == 7
+
 print("all tests ok...")
