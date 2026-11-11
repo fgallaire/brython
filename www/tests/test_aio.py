@@ -457,3 +457,58 @@ async def test_aclose():
     print("aclose test ok")
 
 aio.run(test_aclose())
+
+# coroutines that run in turn give the frames stack back as they suspend: none
+# of their frames is left on it once they are done
+import sys
+
+# and a return inside an async with gives its value once __aexit__ has run,
+# called from the function's frame
+class ManagerReturnedFrom:
+    def __init__(self):
+        self.log = []
+
+    async def __aenter__(self):
+        self.log.append('enter')
+        return self
+
+    async def __aexit__(self, *exc):
+        self.log.append(sys._getframe().f_back.f_code.co_name)
+        return False
+
+async def return_in_async_with(manager):
+    async with manager:
+        await aio.sleep(0)
+        return 'value'
+
+async def test_return_in_async_with():
+    manager = ManagerReturnedFrom()
+    async_tester.assertEqual(await return_in_async_with(manager), 'value')
+    async_tester.assertEqual(manager.log, ['enter', 'return_in_async_with'])
+    print("return in async with ok")
+
+aio.run(test_return_in_async_with())
+
+async def agen_in_turn():
+    await aio.sleep(0)
+    yield 1
+
+async def run_in_turn(i):
+    await aio.sleep(i % 3 / 1000)
+    async for _ in agen_in_turn():
+        await aio.sleep(0)
+
+frames_below_in_turn = []
+
+def check_stack_in_turn():
+    # called from the event loop, below no other frame
+    frames_below_in_turn.append(sys._getframe().f_back)
+
+def report_stack_in_turn():
+    async_tester.assertEqual(
+        [frame for frame in frames_below_in_turn if frame is not None], [])
+
+for i in range(30):
+    timer.set_timeout(lambda i=i: aio.run(run_in_turn(i)), i % 5)
+    timer.set_timeout(check_stack_in_turn, i % 7)
+timer.set_timeout(report_stack_in_turn, 100)

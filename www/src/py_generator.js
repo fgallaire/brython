@@ -301,6 +301,22 @@ async_generator_funcs.__sizeof__ = function(self) {
     $B.RAISE(_b_.NotImplementedError)
 }
 
+// A step of an asynchronous generator runs with its frame on top of the stack,
+// until it suspends at an "await" or a "yield", or ends: the stack is the one
+// it was called on again then, and stays the one its resumption runs on.
+// Generator expressions don't have $frame.
+function step(self, resume, value) {
+    var save_frame_obj = $B.frame_obj
+    if (self.$frame) {
+        $B.frame_obj = $B.push_frame(self.$frame)
+    }
+    try {
+        return resume(value)
+    } finally {
+        $B.frame_obj = save_frame_obj
+    }
+}
+
 async_generator_funcs.aclose = async function(self) {
     var gen = self.js_gen
     if (gen.$closing) {
@@ -315,17 +331,13 @@ async_generator_funcs.aclose = async function(self) {
     // StopAsyncIteration for an exhausted generator, so it cannot be tested
     // here
     gen.$closing = true
-    var save_frame_obj = $B.frame_obj
-    if (self.$frame) {
-        $B.frame_obj = $B.push_frame(self.$frame)
-    }
     var res
     try {
         // Throw GeneratorExit in, as CPython does, so that the generator's
         // "except GeneratorExit" clauses and the __aexit__ of any context
         // manager it is suspended inside run. Javascript's return() would run
         // the finally blocks and skip both.
-        res = await gen.throw($B.$call(_b_.GeneratorExit))
+        res = await step(self, gen.throw.bind(gen), $B.$call(_b_.GeneratorExit))
     } catch (err) {
         if ($B.is_exc(err, [_b_.GeneratorExit, _b_.StopAsyncIteration])) {
             // the generator let GeneratorExit propagate, or returned
@@ -334,7 +346,6 @@ async_generator_funcs.aclose = async function(self) {
         throw err
     } finally {
         gen.$closing = false
-        $B.frame_obj = save_frame_obj
     }
     if (! res.done) {
         $B.RAISE(_b_.RuntimeError, "async generator ignored GeneratorExit")
@@ -375,26 +386,12 @@ async_generator_funcs.asend = async function(self, value) {
         $B.RAISE(_b_.ValueError, "generator already executing")
     }
     gen.ag_running = true
-    // save frames before resuming the generator
-    var save_frame_obj = $B.frame_obj
-    // put generator frame on top of stack
-    // generator expressions don't have $frame
-    if (self.$frame) {
-        $B.frame_obj = $B.push_frame(self.$frame)
-    }
     try {
-        var res = await gen.next(value)
+        var res = await step(self, gen.next.bind(gen), value)
     } catch (err) {
         gen.$finished = true
-        $B.frame_obj = save_frame_obj
         throw err
     }
-    // Call leave_frame to handle context managers
-    if ($B.frame_obj !== null && $B.frame_obj.frame === self.$frame) {
-        $B.leave_frame()
-    }
-    // restore stack
-    $B.frame_obj = save_frame_obj
     if (res.done) {
         $B.RAISE(_b_.StopAsyncIteration, value)
     }
@@ -427,12 +424,7 @@ async_generator_funcs.athrow = async function(self, type, value, traceback) {
     if (traceback !== undefined) {
         exc.$traceback = traceback
     }
-    var save_frame_obj = $B.frame_obj
-    if (self.$frame) {
-        $B.frame_obj = $B.push_frame(self.$frame)
-    }
-    await gen.throw(value)
-    $B.frame_obj = save_frame_obj
+    await step(self, gen.throw.bind(gen), value)
 }
 
 $B.async_generator.tp_methods = ["asend", "athrow", "aclose", "__sizeof__"]

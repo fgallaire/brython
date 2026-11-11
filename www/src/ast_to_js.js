@@ -1528,8 +1528,9 @@ $B.ast.AsyncWith.prototype.to_js = function(scopes) {
         s += prefix + `mgr_type_${id} = _b_.type.$factory(mgr_${id}),\n` +
              prefix + `aexit_${id} = $B.$getattr(mgr_type_${id}, '__aexit__'),\n` +
              prefix + `aenter_${id} = $B.$getattr(mgr_type_${id}, '__aenter__'),\n` +
-             prefix + `value_${id} = await $B.promise($B.$call(aenter_${id}, mgr_${id})),\n` +
-             prefix + `exc_${id} = true\n`
+             prefix + `value_${id} = $B.resumed(await $B.promise($B.$call(aenter_${id}, mgr_${id}))),\n` +
+             prefix + `exc_${id} = true,\n` +
+             prefix + `stack_length_${id} = $B.count_frames()\n`
         if (has_generator) {
             // add/update attribute used to close context managers in
             // leave_frame()
@@ -1557,8 +1558,8 @@ $B.ast.AsyncWith.prototype.to_js = function(scopes) {
              prefix + `err_${id} = $B.exception(err_${id}, frame)\n` +
              prefix + `var lineno_${id} = frame.$lineno\n` +
              prefix + `frame.$lineno = ${lineno}\n` +
-             prefix + `var $b = await $B.promise(aexit_${id}(mgr_${id}, $B.get_class(err_${id}), \n` +
-             prefix + tab.repeat(4) + `err_${id}, $B.$getattr(err_${id}, '__traceback__')))\n` +
+             prefix + `var $b = $B.resumed(await $B.promise(aexit_${id}(mgr_${id}, $B.get_class(err_${id}), \n` +
+             prefix + tab.repeat(4) + `err_${id}, $B.$getattr(err_${id}, '__traceback__'))))\n` +
              prefix + `if (! $B.$bool($b)) {\n` +
              prefix + tab + `frame.$lineno = lineno_${id}\n` +
              prefix + tab + `throw err_${id}\n` +
@@ -1568,9 +1569,18 @@ $B.ast.AsyncWith.prototype.to_js = function(scopes) {
         dedent()
         s += prefix + `}finally{\n`
         indent()
+        // A "return" in the block has left the frame: __aexit__ is awaited
+        // in it again, as the "finally" of a "try" runs
         s += prefix + `if (exc_${id}) {\n` +
+             prefix + tab + `var exit_${id} = $B.count_frames() < stack_length_${id}\n` +
+             prefix + tab + `if (exit_${id}) {\n` +
+             prefix + tab + tab + `$B.frame_obj = $B.push_frame(frame)\n` +
+             prefix + tab + `}\n` +
              prefix + tab + `frame.$lineno = ${lineno}\n` +
-             prefix + tab + `await $B.promise(aexit_${id}(mgr_${id}, _b_.None, _b_.None, _b_.None))\n` +
+             prefix + tab + `$B.resumed(await $B.promise(aexit_${id}(mgr_${id}, _b_.None, _b_.None, _b_.None)))\n` +
+             prefix + tab + `if (exit_${id}) {\n` +
+             prefix + tab + tab + `$B.leave_frame()\n` +
+             prefix + tab + `}\n` +
              prefix + `}\n`
         dedent()
         s += prefix + `}\n`
@@ -1674,7 +1684,7 @@ $B.ast.Await.prototype.to_js = function(scopes) {
     }
     if (scopes[ix].ast instanceof $B.ast.AsyncFunctionDef) {
         scopes[ix].has_await = true
-        return `await $B.promise(${$B.js_from_ast(this.value, scopes)})`
+        return `$B.resumed(await $B.promise(${$B.js_from_ast(this.value, scopes)}))`
     } else if (scopes[ix].ast instanceof $B.ast.FunctionDef) {
         compiler_error(this, "'await' outside async function", this.value)
     } else {
@@ -2292,7 +2302,7 @@ $B.ast.For.prototype.to_js = function(scopes) {
               prefix + `while (true) {\n`
         indent()
         js += prefix + `try {\n`+
-              prefix + tab + `var next_${id} = await $B.promise($B.$call(_b_.anext, iter_${id}))\n` +
+              prefix + tab + `var next_${id} = $B.resumed(await $B.promise($B.$call(_b_.anext, iter_${id})))\n` +
               prefix + `} catch (err) {\n`+
               prefix + tab + `if ($B.is_exc(err, [_b_.StopAsyncIteration])) {\n` +
               prefix + tab + tab + `break\n` +
@@ -4434,6 +4444,10 @@ $B.ast.Yield.prototype.to_js = function(scopes) {
     }
     last_scope(scopes).is_generator = true
     var value = $B.is_none(this.value) ? '_b_.None' : $B.js_from_ast(this.value, scopes)
+    if (scope.ast instanceof $B.ast.AsyncFunctionDef) {
+        // an asynchronous generator suspends there, as at an "await"
+        return `yield $B.yielded(${value})`
+    }
     return `yield ${value}`
 }
 

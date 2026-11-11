@@ -106,19 +106,7 @@ coroutine_funcs.send = function(self) {
         }
         $B.RAISE(_b_.TypeError, msg)
     }
-    var res = self.$func.apply(null, self.$args)
-    // restore frames after resolution
-    res.then(function() {
-        if (self.$frame_obj) {
-            $B.frame_obj = self.$frame_obj
-        }
-    }).
-        catch(function(err) {
-            if (err.$frame_obj) {
-                $B.frame_obj = err.$frame_obj
-            }
-        })
-    return res
+    return self.$func.apply(null, self.$args)
 }
 
 coroutine_funcs.throw = function(self) {
@@ -204,30 +192,18 @@ $B.make_async = func => {
     return f
 }
 
-// "x = await coro" is translated into "x = await $B.promise(coro)"
-
-$B.promise = function(obj) {
+// What an awaitable settles as, and whether that comes from Javascript. A
+// coroutine runs its first step.
+$B.awaited = function(obj) {
     if ($B.exact_type(obj, coroutine)) {
-        // store current frames stack, to be able to restore it when the
-        // promise resolves
-        obj.$frame_obj = $B.frame_obj
-        return coroutine.tp_funcs.send(obj)
+        return [coroutine.tp_funcs.send(obj), false]
     }
     if (typeof obj == "function") {
-        return obj()
+        return [obj(), false]
     }
     // check if obj is an instance of Promise or supports the Thenable interface
     if (obj instanceof Promise || typeof obj.then == "function") {
-        // store current frames stack, to be able to restore it when the
-        // promise resolves
-        obj.frame_obj = $B.frame_obj
-        return obj.then(function(x) {
-            $B.frame_obj = obj.frame_obj
-            return $B.jsobj2pyobj(x)
-        }).catch(function(err) {
-            $B.frame_obj = obj.frame_obj
-            throw $B.exception(err)
-        })
+        return [obj, true]
     }
     var awaitable = $B.$getattr(obj, '__await__', null)
     if (awaitable !== null) {
@@ -237,10 +213,44 @@ $B.promise = function(obj) {
             $B.RAISE(_b_.TypeError, '__await__() returned non-iterator' +
                 ` of type '${$B.class_name(awaitable)}'`)
         }
-        return awaitable
+        return [awaitable, false]
     }
     $B.RAISE(_b_.TypeError, `object ${$B.class_name(obj)} ` +
         `can't be used in 'await' expression`)
+}
+
+// "x = await coro" is translated into "x = $B.resumed(await $B.promise(coro))"
+//
+// The awaiting code gives back the frames stack it ran on, its caller's or the
+// event loop's, as it suspends, and takes its own again as it resumes: set by a
+// callback of the promise, the stack would be another coroutine's when the
+// steps of several coroutines interleave.
+$B.promise = function(obj) {
+    var frame_obj = $B.frame_obj,
+        [awaited, from_js] = $B.awaited(obj)
+    $B.frame_obj = $B.stack_before(frame_obj)
+    return Promise.resolve(awaited).then(
+        value => ({frame_obj, value, from_js}),
+        error => ({frame_obj, error, from_js})
+    )
+}
+
+// "yield x" in an asynchronous generator is translated into
+// "yield $B.yielded(x)": it suspends there too
+$B.yielded = function(value) {
+    $B.frame_obj = $B.stack_before($B.frame_obj)
+    return value
+}
+
+$B.resumed = function(settled) {
+    var frame_obj = settled.frame_obj
+    // the stack this step runs on, given back as it suspends or returns
+    frame_obj.before = $B.frame_obj
+    $B.frame_obj = frame_obj
+    if ('error' in settled) {
+        throw settled.from_js ? $B.exception(settled.error) : settled.error
+    }
+    return settled.from_js ? $B.jsobj2pyobj(settled.value) : settled.value
 }
 
 })(__BRYTHON__);

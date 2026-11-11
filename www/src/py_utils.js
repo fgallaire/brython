@@ -1605,6 +1605,12 @@ $B.trace_return = function(value) {
     trace_func(frame, 'return', value)
 }
 
+// The stack a frame gives back as it is left or suspends: its caller's, or for
+// a coroutine resumed, the one its step ran on ($B.resumed)
+$B.stack_before = function(frame_obj) {
+    return frame_obj.before === undefined ? frame_obj.prev : frame_obj.before
+}
+
 $B.leave_frame = function(arg) {
     // Leave execution frame
     if ($B.frame_obj === null) {
@@ -1625,7 +1631,7 @@ $B.leave_frame = function(arg) {
         throw Error('no frame_obj')
     }
     var frame = $B.frame_obj.frame
-    $B.frame_obj = $B.frame_obj.prev
+    $B.frame_obj = $B.stack_before($B.frame_obj)
     // For generators in locals, if their execution frame has context
     // managers, close them. In standard Python this happens when the
     // generator is garbage-collected.

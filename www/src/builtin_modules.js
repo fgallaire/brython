@@ -1473,9 +1473,7 @@
             return ajax.bind(null, "POST").apply(null, arguments)
         },
         run: function() {
-            var handle_success = function() {
-                    $B.leave_frame()
-                },
+            var handle_success = function() {},
                 handle_error = $B.show_error
 
             var $ = $B.args("run", 3,

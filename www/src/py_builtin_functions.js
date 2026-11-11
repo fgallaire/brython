@@ -83,7 +83,7 @@ _b_.anext = function() {
     if ($._default === $B.NULL) {
         return awaitable
     }
-    return $B.promise(awaitable).catch(
+    return Promise.resolve($B.awaited(awaitable)[0]).catch(
         function(err) {
             if ($B.is_exc(err, [_b_.StopAsyncIteration])) {
                 return $._default
