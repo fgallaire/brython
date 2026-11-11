@@ -3895,7 +3895,10 @@ function handler_to_js(handler, scopes, try_scope, err) {
     }
     bind(handler.name, scopes)
     var mangled = mangle(scopes, try_scope, handler.name)
-    var js = prefix + `locals.${mangled} = ${err}\n` + prefix + 'try {\n'
+    // the exception $B.set_exc_and_trace made of what was thrown, which is the
+    // thrown value itself unless Javascript threw a value that cannot be one,
+    // a string for instance
+    var js = prefix + `locals.${mangled} = frame.$current_exception\n` + prefix + 'try {\n'
     indent()
     js += add_body(handler.body, scopes) + '\n'
     dedent()

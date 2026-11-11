@@ -587,4 +587,24 @@ window.L = L
 window.eval(js_src)
 assert type(window.A) is list
 
+# A value Javascript throws that cannot carry an exception's attributes is a
+# JavascriptError, as an object Javascript throws is
+throws = window.eval('(function (value) { throw value })')
+for value, text in [("a string", "a string"), (7, "7"),
+        (javascript.NULL, "null")]:
+    try:
+        throws(value)
+    except JavascriptError as exc:
+        assert type(exc) is JavascriptError
+        assert str(exc) == text, str(exc)
+    else:
+        raise AssertionError(f"{value!r} was not raised")
+
+try:
+    window.eval('(function () { throw Object.freeze({}) })')()
+except JavascriptError:
+    pass
+else:
+    raise AssertionError("a frozen object was not raised")
+
 print("all tests ok...")
