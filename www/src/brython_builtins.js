@@ -1,10 +1,11 @@
 "use strict";
 var __BRYTHON__ = globalThis.__BRYTHON__ || {}  // global object with brython built-ins
 
-try {
-    // "async function*" is not supported in old versions of Microsoft Edge
-    eval("async function* f(){}")
-} catch (err) {
+// "async function*" is not supported in old versions of Microsoft Edge, which
+// have no Symbol.asyncIterator either. Asked of the symbol rather than by
+// eval(), which a Content Security Policy without 'unsafe-eval' blocks, so
+// that every page warned and reported a violation
+if (typeof Symbol.asyncIterator !== "symbol") {
     console.warn("Your browser is not fully supported. If you are using " +
         "Microsoft Edge, please upgrade to the latest version")
 }
