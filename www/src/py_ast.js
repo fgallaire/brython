@@ -41,10 +41,22 @@ for (let name in $B.ast_classes) {
     }
 }
 
+// A closure rather than Function(), which a page whose Content Security
+// Policy does not allow 'unsafe-eval' refuses
+function ast_class(arg_list, listed) {
+    return function(...values) {
+        for (var i = 0, len = arg_list.length; i < len; i++) {
+            var value = values[i]
+            this[arg_list[i]] = listed[i] ?
+                $B.$list(value === undefined ? [] : value) : value
+        }
+    }
+}
+
 for (var kl in $B.ast_classes) {
     var args = $B.ast_classes[kl],
-        body = '',
         arg_list = [],
+        listed = [],
         fields = [],
         optional = []
     if (typeof args == "string") {
@@ -52,21 +64,14 @@ for (var kl in $B.ast_classes) {
             for (var arg of args.split(',')) {
                 let [arg_type, arg_name] = arg.split(/\s+/)
                 arg_list.push(arg_name)
-                if (arg_type.endsWith('*')) {
-                    //arg = arg.substr(0, arg.length - 1)
-                    body += ` this.${arg_name} = $B.$list(${arg_name} === undefined ? [] : ${arg_name})\n`
-                } else if (arg_type.endsWith('?')) {
-                    //arg = arg.substr(0, arg.length - 1)
+                listed.push(arg_type.endsWith('*'))
+                if (arg_type.endsWith('?')) {
                     optional.push(arg_name)
-                    body += ` this.${arg_name} = ${arg_name}\n`
-                } else {
-                    body += ` this.${arg_name} = ${arg_name}\n`
                 }
             }
             fields = args.split(',').map(x => x.trim().split(/\s+/)[1])
         }
-        //var arg_list = args.replace(/[*?]/g, '').split(',')
-        ast[kl] = Function(...arg_list, body)
+        ast[kl] = ast_class(arg_list, listed)
         ast[kl]._fields = fields
         ast[kl]._optional = optional
     } else {
