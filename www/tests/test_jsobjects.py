@@ -587,4 +587,34 @@ window.L = L
 window.eval(js_src)
 assert type(window.A) is list
 
+# The attributes a Javascript error has of its own are read off it
+try:
+    window.eval('(function () { var e = new TypeError("bad"); e.code = 7; throw e })')()
+except JavascriptError as exc:
+    assert exc.name == "TypeError", exc.name
+    assert exc.message == "bad"
+    assert exc.code == 7
+else:
+    raise AssertionError("not raised")
+
+try:
+    window.eval('(function () { throw {status: 404, body: {message: "gone"}} })')()
+except JavascriptError as exc:
+    assert exc.status == 404
+    assert exc.body.message == "gone"
+    assert not hasattr(exc, "missing")
+else:
+    raise AssertionError("not raised")
+
+# and its methods are called on it
+try:
+    window.eval('(function () { var e = new Error("bad"); ' +
+        'e.issues = [1, 2]; e.count = function () { return this.issues.length }; ' +
+        'throw e })')()
+except JavascriptError as exc:
+    assert exc.count() == 2
+    assert exc.toString() == "Error: bad"
+else:
+    raise AssertionError("not raised")
+
 print("all tests ok...")

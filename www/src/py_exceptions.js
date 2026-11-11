@@ -1395,6 +1395,23 @@ $B.set_func_names(_b_.ExceptionGroup, "builtins")
 _b_.JavascriptError = $B.make_builtin_class('JavascriptError',
     [_b_.Exception])
 
+// The attributes the Javascript value has of its own, e.status, e.name,
+// e.message or e.code, read off it when the exception's class has none: the
+// value thrown is the exception itself, unless it could carry no attribute
+// (cf. $B.exception), when it is kept in $js_exc
+_b_.JavascriptError.tp_getattro = function(self, attr) {
+    var res = _b_.object.tp_getattro(self, attr)
+    if (res !== $B.NULL) {
+        return res
+    }
+    var js = Object.hasOwn(self, '$js_exc') ? self.$js_exc : self
+    if (js !== null && (typeof js == 'object' || typeof js == 'function') &&
+            attr in js) {
+        return $B.jsobj2pyobj(js[attr], js)
+    }
+    return $B.NULL
+}
+
 function make_report(lines, positions) {
     // positions is [lineno, end_lineno, col_offset, end_col_offset]
     // Return a string with the lines between lineno and end_lineno,
