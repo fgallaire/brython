@@ -820,7 +820,7 @@ $B.JSObj.tp_getattro = function(_self, attr) {
 
     var js_attr = _self[attr]
     if (js_attr == undefined && typeof _self == "function") {
-        js_attr = _self.$js_func[attr]
+        js_attr = _self.$js_func?.[attr]
     }
     if (test) {
         console.log('js_attr', js_attr, typeof js_attr,
@@ -878,10 +878,8 @@ $B.JSObj.tp_getattro = function(_self, attr) {
     } else if (typeof js_attr === 'function') {
         // The second argument is the value passed as "this" when the JS
         // function is executed. If _self is a wrapper around a JS function,
-        // pass the JS function, not the wrapper
-        if (! js_attr.$infos && ! js_attr.$function_infos) {
-            js_attr.$js_func = js_attr
-        }
+        // pass the JS function, not the wrapper. Nothing is written on the
+        // function, which may be frozen or another library's
         return jsobj2pyobj(js_attr, _self.$js_func || _self)
     } else {
         if (test) {
@@ -950,9 +948,9 @@ $B.JSObj.tp_repr = function(self) {
     if (typeof self == 'number') {
         return self + ''
     }
-    if(typeof self == 'function' && self.$js_func.name &&
-            globalThis[self.$js_func.name] === self.$js_func){
-        return `<function window.${self.$js_func.name}>`
+    var func = typeof self == 'function' ? self.$js_func ?? self : undefined
+    if (func && func.name && globalThis[func.name] === func) {
+        return `<function window.${func.name}>`
     }
     var js_repr = Object.prototype.toString.call(self)
     return `<Javascript object: ${js_repr}>`
@@ -971,7 +969,7 @@ JSObj_funcs.__getattr__ = function(self, attr) {
     var test = false // attr == 'test'
     var js_attr = self[attr]
     if (js_attr == undefined && typeof self == "function") {
-        js_attr = self.$js_func[attr]
+        js_attr = self.$js_func?.[attr]
     }
     if (test) {
         console.log('js_attr', js_attr, typeof js_attr,
@@ -1002,9 +1000,6 @@ JSObj_funcs.__getattr__ = function(self, attr) {
         // The second argument is the value passed as "this" when the JS
         // function is executed. If self is a wrapper around a JS function,
         // pass the JS function, not the wrapper
-        if (! js_attr.$infos && ! js_attr.$function_infos) {
-            js_attr.$js_func = js_attr
-        }
         return jsobj2pyobj(js_attr, self.$js_func || self)
     } else {
         if (test) {

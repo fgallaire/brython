@@ -183,6 +183,12 @@ class Z2249 {
 let z2249 = new Z2249();
 window.x2249 = z2249
 
+// functions that Python reads and that take no property
+window.frozen_holder = Object.freeze({
+    who: Object.freeze(function() { return 'ran' })
+})
+window.plain_holder = {who: function() { return 'ran' }}
+
 console.log(window.Date === window.Date)
 console.log(window.x2249 == window.x2249)
 console.log(window.x2249 === window.x2249.me)

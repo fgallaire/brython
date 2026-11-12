@@ -174,6 +174,11 @@ obj = dummy_json.loads(s)
 assert obj["x"] == 1
 assert dummy_json.dumps(obj) == s
 
+# reading a Javascript function writes nothing on it, which may be frozen
+assert window.frozen_holder.who() == 'ran'
+assert window.plain_holder.who() == 'ran'
+assert list(window.Object.keys(window.plain_holder.who)) == []
+
 # issue 1417
 b1 = window.BigInt('23456')
 b2 = window.BigInt('78901')
