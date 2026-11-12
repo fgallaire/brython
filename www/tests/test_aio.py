@@ -350,6 +350,25 @@ async def wait_error():
 
 aio.run(wait_error())
 
+# StopAsyncIteration raised in an asynchronous generator is a RuntimeError
+async def raises_stop():
+    yield 1
+    raise StopAsyncIteration
+
+async def test_raised_stop():
+    got = []
+    try:
+        async for value in raises_stop():
+            got.append(value)
+    except RuntimeError as exc:
+        async_tester.assertEqual(str(exc),
+                                 "async generator raised StopAsyncIteration")
+        got.append("RuntimeError")
+    async_tester.assertEqual(got, [1, "RuntimeError"])
+    print("raised stop ok")
+
+aio.run(test_raised_stop())
+
 # anext(async_iterator, default)
 async def async_it_yield_one():
   yield 1

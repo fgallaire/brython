@@ -390,6 +390,14 @@ async_generator_funcs.asend = async function(self, value) {
         var res = await step(self, gen.next.bind(gen), value)
     } catch (err) {
         gen.$finished = true
+        if ($B.is_exc(err, [_b_.StopAsyncIteration, _b_.StopIteration])) {
+            // PEP 479: raised in the generator, it is a RuntimeError, not the
+            // end of the iteration
+            var exc = $B.EXC(_b_.RuntimeError,
+                `async generator raised ${$B.class_name(err)}`)
+            exc.__cause__ = err
+            throw exc
+        }
         throw err
     }
     if (res.done) {
