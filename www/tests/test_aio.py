@@ -457,3 +457,20 @@ async def test_aclose():
     print("aclose test ok")
 
 aio.run(test_aclose())
+
+# a coroutine runs once: awaited a second time it raises, as in CPython
+async def run_once():
+    return 5
+
+async def test_coroutine_reuse():
+    c = run_once()
+    async_tester.assertEqual(await c, 5)
+    try:
+        await c
+        raise AssertionError("expected RuntimeError")
+    except RuntimeError as exc:
+        async_tester.assertEqual(str(exc),
+                                 "cannot reuse already awaited coroutine")
+    print("coroutine reuse test ok")
+
+aio.run(test_coroutine_reuse())

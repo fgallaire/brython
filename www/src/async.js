@@ -96,8 +96,6 @@ coroutine_funcs.cr_suspended_set = function(self) {
 }
 
 coroutine_funcs.send = function(self) {
-    self.$sent = true
-    unawaited.unregister(self)
     if (! $B.$isinstance(self, coroutine)) {
         var msg = "object is not a coroutine"
         if(typeof self == "function" && self.$function_infos &&
@@ -106,6 +104,12 @@ coroutine_funcs.send = function(self) {
         }
         $B.RAISE(_b_.TypeError, msg)
     }
+    // a coroutine runs once: awaited again, or after close(), it raises
+    if (self.$sent) {
+        $B.RAISE(_b_.RuntimeError, "cannot reuse already awaited coroutine")
+    }
+    self.$sent = true
+    unawaited.unregister(self)
     var res = self.$func.apply(null, self.$args)
     // restore frames after resolution
     res.then(function() {
