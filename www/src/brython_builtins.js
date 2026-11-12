@@ -311,32 +311,40 @@ $B.is_type = function(obj) {
     return klass.tp_mro.includes(_b_.type)
 }
 
+// The flags of a type, or 0 for what is not one: a Javascript proxy that
+// answers any property gives another proxy as "ob_type" and "tp_flags",
+// which cannot be converted to a number
+function flags_of(type) {
+    var flags = type?.tp_flags
+    return typeof flags == 'number' ? flags : 0
+}
+
 $B.is_bytes = function(obj) {
-    return obj?.ob_type?.tp_flags & $B.TPFLAGS.BYTES_SUBCLASS
+    return flags_of(obj?.ob_type) & $B.TPFLAGS.BYTES_SUBCLASS
 }
 
 $B.is_dict = function(obj) {
-    return obj && obj[$B.OB_TYPE]?.tp_flags & $B.TPFLAGS.DICT_SUBCLASS
+    return obj && flags_of(obj[$B.OB_TYPE]) & $B.TPFLAGS.DICT_SUBCLASS
 }
 
 $B.is_int = function(obj) {
     return typeof obj == 'number' ||
            typeof obj == 'bigint' ||
            typeof obj == 'boolean' ||
-           obj?.ob_type?.tp_flags & $B.TPFLAGS.LONG_SUBCLASS
+           flags_of(obj?.ob_type) & $B.TPFLAGS.LONG_SUBCLASS
 }
 
 $B.is_list = function(obj) {
-    return obj?.ob_type?.tp_flags & $B.TPFLAGS.LIST_SUBCLASS
+    return flags_of(obj?.ob_type) & $B.TPFLAGS.LIST_SUBCLASS
 }
 
 $B.is_str = function(obj) {
     return typeof obj == 'string' ||
-        obj?.ob_type?.tp_flags & $B.TPFLAGS.UNICODE_SUBCLASS
+        flags_of(obj?.ob_type) & $B.TPFLAGS.UNICODE_SUBCLASS
 }
 
 $B.is_tuple = function(obj) {
-    return obj?.ob_type?.tp_flags & $B.TPFLAGS.TUPLE_SUBCLASS
+    return flags_of(obj?.ob_type) & $B.TPFLAGS.TUPLE_SUBCLASS
 }
 
 $B.is_builtin_type = function(cls) {

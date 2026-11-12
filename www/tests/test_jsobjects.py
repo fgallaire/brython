@@ -167,6 +167,16 @@ assert b1 % b2 == window.BigInt(str(23456 % 78901))
 b3 = window.BigInt('2')
 assert b1 ** b3 == window.BigInt(str(23456 ** 2))
 
+# a Javascript proxy that answers any property is compared and hashed as the
+# object it is, and a frozen object is hashed
+fields = window.answers_anything
+assert fields is fields
+assert fields == fields
+assert fields in [fields]
+assert {'f': fields}['f'] is fields
+assert hash(fields) == hash(fields)
+assert hash(window.frozen_object) == hash(window.frozen_object)
+
 # inheriting a Javascript class
 class Square2(window.Rectangle):
 

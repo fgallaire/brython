@@ -994,8 +994,11 @@ _b_.hash = function(obj) {
 }
 
 $B.$hash = function(obj) {
-    if (obj.__hashvalue__ !== undefined) {
-        return obj.__hashvalue__
+    // a hash already computed is a number, not what a Javascript proxy gives
+    // for any property
+    var hashvalue = obj?.__hashvalue__
+    if (typeof hashvalue == 'number' || typeof hashvalue == 'bigint') {
+        return hashvalue
     }
     var res
     if (typeof obj === "boolean") {

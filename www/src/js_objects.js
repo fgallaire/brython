@@ -746,11 +746,23 @@ $B.JSObj.tp_richcompare = function(self, other, op) {
     }
 }
 
+// The hash of a Javascript object, kept apart from it: nothing is written on
+// an object that may be frozen, a proxy or another library's
+const JS_HASHES = new WeakMap()
+
 $B.JSObj.tp_hash = function(self) {
     // must not be the same object as object.__hash__ because, since
     // JSObj.__eq__ is not the same as object.__eq__, JSObj instances
     // would be unhashable
-    return _b_.object.tp_hash(self)
+    if (self === null || (typeof self != 'object' && typeof self != 'function')) {
+        return _b_.object.tp_hash(self)
+    }
+    var hash = JS_HASHES.get(self)
+    if (hash === undefined) {
+        hash = $B.$py_next_hash--
+        JS_HASHES.set(self, hash)
+    }
+    return hash
 }
 
 $B.JSObj.tp_iter = function(self) {

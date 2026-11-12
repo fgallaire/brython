@@ -1684,8 +1684,8 @@ var method2comp = {"__lt__": "<", "__le__": "<=", "__gt__": ">",
 
 $B.rich_comp = function(op, x, y) {
     // short cut for ints and floats
-    var x1 = x?.valueOf ? x.valueOf() : x,
-        y1 = y?.valueOf ? y.valueOf() : y
+    var x1 = typeof x?.valueOf == 'function' ? x.valueOf() : x,
+        y1 = typeof y?.valueOf == 'function' ? y.valueOf() : y
     if((typeof x1 == "number" || typeof x1 == "bigint") &&
             (typeof y1 == "number" || typeof y1 == "bigint")){
         switch (op) {
@@ -1720,7 +1720,9 @@ $B.rich_comp = function(op, x, y) {
     }
     var rev_op = reversed_op[op] || op,
         y_rev_func
-    if (x?.ob_type && y?.ob_type) {
+    // types of Brython's, as get_class takes them: an "ob_type" with a name
+    if (typeof x?.ob_type?.tp_name == "string" &&
+            typeof y?.ob_type?.tp_name == "string") {
         // cf issue #600 and
         // https://docs.python.org/3/reference/datamodel.html :
         // "If the operands are of different types, and right operand's type

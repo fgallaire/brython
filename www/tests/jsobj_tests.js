@@ -175,6 +175,17 @@ class F2248 {
 
 window.obj_with_getters = new F2248()
 
+// a proxy that answers any property with another one, as the fields of a
+// SvelteKit form do
+function answering_anything() {
+    return new Proxy({}, {
+        get: (target, key) => typeof key == 'symbol' ? target[key] :
+                                                       answering_anything()
+    })
+}
+window.answers_anything = answering_anything()
+window.frozen_object = Object.freeze({a: 1})
+
 window.test_py_returns_undefined = function(){
     var res = window.py_returns_undefined()
     if(res !== undefined){
