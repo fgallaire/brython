@@ -396,6 +396,9 @@ async_generator_funcs.asend = async function(self, value) {
     // restore stack
     $B.frame_obj = save_frame_obj
     if (res.done) {
+        // finished: asked again, it raises StopAsyncIteration again, where
+        // it said it was still executing
+        gen.$finished = true
         $B.RAISE(_b_.StopAsyncIteration, value)
     }
     if ($B.exact_type(res.value, $GeneratorReturn)) {

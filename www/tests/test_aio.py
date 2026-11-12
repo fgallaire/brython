@@ -361,6 +361,17 @@ async def test_anext_with_default():
 
 aio.run(test_anext_with_default())
 
+# a finished asynchronous generator, asked again, raises StopAsyncIteration
+# again
+async def test_anext_after_end():
+  gen = async_it_yield_one()
+  async_tester.assertEqual(await anext(gen), 1)
+  async_tester.assertEqual(await anext(gen, 99), 99)
+  async_tester.assertEqual(await anext(gen, 98), 98)
+  print("anext after end ok")
+
+aio.run(test_anext_after_end())
+
 async def test_future():
     fut = aio.Future()
     timer.set_timeout(lambda: fut.set_result("timeout!"), 2000)
