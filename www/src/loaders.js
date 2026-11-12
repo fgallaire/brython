@@ -436,9 +436,8 @@ var loop = $B.loop = function() {
                 console.log('frame obj', $B.frame_obj)
             }
             if (err.ob_type === undefined) {
-                err.filename = script.filename
-                if (err.$py_exc) {
-                    err = err.$py_exc
+                if ($B.known_exception(err) !== undefined) {
+                    err = $B.known_exception(err)
                 } else {
                     if ($B.get_option('debug', err) > 2) {
                         console.log('JS error', err.stack)

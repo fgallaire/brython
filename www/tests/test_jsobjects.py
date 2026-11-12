@@ -607,4 +607,77 @@ except JavascriptError:
 else:
     raise AssertionError("a frozen object was not raised")
 
+# And the value Javascript throws is left as it was: nothing is put on it, and
+# the exception Python holds it in is handed back to Javascript as that value
+error = window.eval('(function () { var e = new Error("bad"); e.status = 404; return e })')()
+same = window.eval('(function (a, b) { return a === b })')
+own_keys = window.eval('(function (e) { return Object.getOwnPropertyNames(e).sort().join() })')
+keys_before = own_keys(error)
+try:
+    throws(error)
+except JavascriptError as exc:
+    assert own_keys(error) == keys_before, own_keys(error)
+    assert same(exc, error)
+    assert str(exc) == "bad"
+else:
+    raise AssertionError("not raised")
+assert own_keys(error) == keys_before, own_keys(error)
+
+# raised again, it is the value Javascript threw
+def raised_again():
+    try:
+        throws(error)
+    except JavascriptError:
+        raise
+
+catches = window.eval('(function (f) { try { f() } catch (e) { return e } })')
+assert same(catches(raised_again), error)
+assert own_keys(error) == keys_before, own_keys(error)
+
+# what Python writes on the exception is written on that value, which goes on
+# with it, and its text is the value's when it is thrown again
+written = window.eval('(function () { return new Error("first") })')()
+try:
+    throws(written)
+except JavascriptError as exc:
+    exc.handled = True
+    exc.retries = 3
+assert written.handled is True and written.retries == 3
+written.message = "second"
+try:
+    throws(written)
+except JavascriptError as exc:
+    assert str(exc) == "second", str(exc)
+
+# handed to Python as an argument, it is raised as itself
+def raises(value):
+    raise value
+
+assert same(catches(lambda: raises(written)), written)
+
+# and so is any value of Javascript's, as its "throw" takes any: the object a
+# rejection or a callback hands over
+status = window.eval('(function () { return {status: 404} })')()
+assert same(catches(lambda: raises(status)), status)
+
+# a dict and a function are no exception, a Javascript class of errors is
+# raised by an instance of it, the class Python made of one read off an object
+# too, and a Javascript cause is the JavascriptError that holds it
+for value in [{}, {"a": 1}, window.eval('(function () {})')]:
+    try:
+        raises(value)
+    except TypeError:
+        pass
+    else:
+        raise AssertionError("not refused")
+is_error = window.eval('(function (e) { return e instanceof Error })')
+assert is_error(catches(lambda: raises(window.Error)))
+failing = window.eval('({Fail: class Fail extends Error {}})')
+is_fail = window.eval('(function (e) { return e.constructor.name == "Fail" })')
+assert is_fail(catches(lambda: raises(failing.Fail)))
+try:
+    raise ValueError("outer") from written
+except ValueError as exc:
+    assert isinstance(exc.__cause__, JavascriptError)
+
 print("all tests ok...")

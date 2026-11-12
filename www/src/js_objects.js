@@ -1027,7 +1027,8 @@ JSObj_funcs.bind = function(_self, evt, func) {
         try {
             return $B.$call(func, jsobj2pyobj(ev))
         } catch (err) {
-            if (err.ob_type !== undefined) {
+            if (err?.ob_type !== undefined ||
+                    $B.known_exception(err) !== undefined) {
                 $B.handle_error(err)
             } else {
                 try {
