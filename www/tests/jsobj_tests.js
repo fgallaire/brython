@@ -15,6 +15,27 @@ function test_none(attr) {
 
 a_table = {headers:[{name:"test",type:"string", value: 8, s: "a"}],rows:[]}
 
+// an asynchronous generator, and an object with a [Symbol.asyncIterator]
+// method, which "for await" walks
+async function* js_async_halves(n){
+    for(var i = 0; i < n; i++){
+        yield i / 2
+    }
+}
+js_async_object = {
+    [Symbol.asyncIterator](){
+        var i = 0
+        return {
+            next: async function(){
+                return i < 2 ? {value: i++, done: false} : {value: undefined, done: true}
+            }
+        }
+    }
+}
+// and one made without a prototype
+js_async_bare = Object.create(null)
+js_async_bare[Symbol.asyncIterator] = js_async_object[Symbol.asyncIterator]
+
 class JS_A {
 }
 

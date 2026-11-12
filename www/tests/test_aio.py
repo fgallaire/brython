@@ -457,3 +457,27 @@ async def test_aclose():
     print("aclose test ok")
 
 aio.run(test_aclose())
+
+# a Javascript object that "for await" walks is walked by "async for"
+from browser import window
+
+async def test_js_async_iterable():
+    got = []
+    async for value in window.js_async_halves(3):
+        got.append(value)
+    async_tester.assertEqual(got, [0, 0.5, 1])
+    got = []
+    async for value in window.js_async_object:
+        got.append(value)
+    async_tester.assertEqual(got, [0, 1])
+    got = []
+    async for value in window.js_async_bare:
+        got.append(value)
+    async_tester.assertEqual(got, [0, 1])
+    it = aiter(window.js_async_object)
+    async_tester.assertEqual(await anext(it), 0)
+    async_tester.assertEqual(await anext(it), 1)
+    async_tester.assertEqual(await anext(it, "end"), "end")
+    print("Javascript async iterable test ok")
+
+aio.run(test_js_async_iterable())

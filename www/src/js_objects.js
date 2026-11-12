@@ -1154,6 +1154,35 @@ $B.IterableJSObj.tp_iternext = function*(self){
 
 $B.set_func_names($B.IterableJSObj, 'builtins')
 
+// A Javascript object that "for await" walks, an asynchronous generator, a
+// ReadableStream or an object with a [Symbol.asyncIterator] method, is walked
+// by "async for", each value converted as an iterable's is
+$B.AsyncIterableJSObj = $B.make_builtin_class('AsyncIterableJavascriptObject', [$B.JSObj])
+
+var js_async_iterators = new WeakMap()
+
+$B.AsyncIterableJSObj.am_aiter = function(self) {
+    js_async_iterators.set(self, self[Symbol.asyncIterator]())
+    return self
+}
+
+$B.AsyncIterableJSObj.am_anext = function(self) {
+    var iterator = js_async_iterators.get(self)
+    if (iterator === undefined) {
+        // anext() can be called without aiter() first
+        iterator = self[Symbol.asyncIterator]()
+        js_async_iterators.set(self, iterator)
+    }
+    return iterator.next().then(function(step) {
+        if (step.done) {
+            $B.RAISE(_b_.StopAsyncIteration)
+        }
+        return jsobj2pyobj(step.value)
+    })
+}
+
+$B.set_func_names($B.AsyncIterableJSObj, 'builtins')
+
 /* js_array_iterator */
 
 var js_array_iterator = $B.make_builtin_class('JSArray_iterator')
@@ -1459,10 +1488,15 @@ $B.get_jsobj_class = function(obj) {
     }
     var proto = Object.getPrototypeOf(obj)
     if (proto === null) {
-        return $B.JSObj
+        // an object made without a prototype may still be walked by "for
+        // await"
+        return typeof obj[Symbol.asyncIterator] == 'function' ?
+            $B.AsyncIterableJSObj : $B.JSObj
     }
     if (proto[Symbol.iterator] !== undefined) {
         return $B.IterableJSObj
+    } else if (typeof obj[Symbol.asyncIterator] == 'function') {
+        return $B.AsyncIterableJSObj
     } else if (Object.getOwnPropertyNames(proto).indexOf('length') > -1) {
         return $B.SizedJSObj
     }
