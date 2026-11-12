@@ -69,6 +69,11 @@ record = window.JSON.parse('{"ob_type": "business", "value": 42}')
 assert record.value == 42
 assert record.ob_type == "business"
 
+# nor is what a proxy answering any property gives for "ob_type"
+fields = window.any_field
+assert fields.name.first.path() == "name.first"
+assert type(fields).__name__ == "JSObject"
+
 # issue 1017
 t = window.a_table
 assert len(t.headers) == 1

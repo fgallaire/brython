@@ -15,6 +15,22 @@ function test_none(attr) {
 
 a_table = {headers:[{name:"test",type:"string", value: 8, s: "a"}],rows:[]}
 
+// a proxy answering any property, as libraries build paths of fields
+function make_path(path){
+    return new Proxy({}, {
+        get(target, prop){
+            if(typeof prop == "symbol"){
+                return target[prop]
+            }
+            if(prop == "path"){
+                return () => path.join(".")
+            }
+            return make_path(path.concat([prop]))
+        }
+    })
+}
+any_field = make_path([])
+
 class JS_A {
 }
 

@@ -528,7 +528,9 @@ $B.get_class = function(obj) {
         return $B.UndefinedType // idem
     }
     var klass = obj.ob_type
-    if (klass?.tp_name !== undefined) {
+    // a class has a name; a Javascript proxy answering any property gives
+    // another proxy for "ob_type" and for its "tp_name"
+    if (typeof klass?.tp_name == "string") {
         return klass
     }
     if (obj[$B.OB_TYPE]) {
@@ -564,17 +566,19 @@ $B.get_class = function(obj) {
                 } else if (obj instanceof Event) {
                     return $B.DOMEvent
                 } else if (obj.ownerDocument) {
+                    // a node or an event of another window; a proxy answering
+                    // any property answers objects here too
                     var view = obj.ownerDocument.defaultView
-                    if (obj instanceof view.Node) {
+                    if (typeof view?.Node == "function" && obj instanceof view.Node) {
                         if (obj.tagName) {
                             var res = $B.module_getattr($B.imported['browser.html'], obj.tagName)
                             return res === $B.NULL ? $B.DOMNode : res
                         }
                         return $B.DOMNode
-                    } else if (obj instanceof view.event) {
+                    } else if (typeof view?.Event == "function" && obj instanceof view.Event) {
                         return $B.DOMEvent
                     }
-                } else if (obj.defaultView) {
+                } else if (typeof obj.defaultView?.Node == "function") {
                     // document in an iframe
                     return $B.DOMNode
                 }
