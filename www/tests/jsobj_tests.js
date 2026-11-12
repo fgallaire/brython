@@ -152,6 +152,11 @@ window.func_returns_null = function() { return null }
 window.func_returns_undefined = function() { return undefined }
 window.func_returns_nothing = function() { }
 
+// a function Python writes attributes on
+window.func_with_props = function() { }
+window.func_with_props.nothing = undefined
+window.func_prop = name => window.func_with_props[name]
+
 class F2248 {
     get _null() { return null }
     get _undefined() { return undefined }

@@ -1584,7 +1584,22 @@ $B.JSFunction.tp_getattro = function(self, attr) {
     if (self[JSOBJ] && self[JSOBJ][attr] !== undefined) {
         return jsobj2pyobj(self[JSOBJ][attr], self[JSOBJ])
     }
+    if (self[JSOBJ] && attr in self[JSOBJ]) {
+        // a property whose value is undefined, None as on a Javascript object
+        return _b_.None
+    }
     return _b_.object.tp_getattro(self, attr)
+}
+
+$B.JSFunction.tp_setattro = function(self, attr, value) {
+    // written on the Javascript function, as on a Javascript object
+    var func = self[JSOBJ] || self
+    if (value === $B.NULL) {
+        delete func[attr]
+    } else {
+        func[attr] = $B.pyobj2jsobj(value)
+    }
+    return _b_.None
 }
 
 $B.JSFunction.tp_descr_get = function(self, obj) {

@@ -199,6 +199,16 @@ assert Square2(10).name == "Square2"
 assert Square2(25).surface() == 625
 assert Square2(20).f() == 400
 
+# an attribute written on a Javascript function is written on the function,
+# and deleted from it; a property it holds as undefined is None
+func = window.func_with_props
+func.flag = 3
+assert func.flag == 3
+assert window.func_prop('flag') == 3
+del func.flag
+assert window.func_prop('flag') is None
+assert func.nothing is None
+
 sq = Square2(6)
 assert list(sq.getSides()) == [6, 6, 6, 6]
 assert sq.area == 36
