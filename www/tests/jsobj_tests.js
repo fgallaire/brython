@@ -42,6 +42,9 @@ class Polygon {
     nb_sides(){
         return 'sides'
     }
+    static kind(){
+        return this.name
+    }
 }
 class Rectangle extends Polygon{
     constructor(height, width) {
@@ -76,9 +79,13 @@ class Rectangle extends Polygon{
 
     return Math.hypot(dx, dy);
   }
+  static named() {
+    return this.displayName
+  }
 }
 
 window.Rectangle = Rectangle // required !
+window.isRectangle = x => x === Rectangle
 
 // Constructor: used to test how a Python class can inherit from a
 // JS constructor

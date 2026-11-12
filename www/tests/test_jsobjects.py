@@ -207,6 +207,20 @@ assert sq.width == 5
 
 assert sq.nb_sides() == 'sides'
 
+# statics of a Javascript class, inherited or its own, called on the class,
+# written on it, and the class passed to Javascript as itself
+assert window.Rectangle.displayName == "Rectangle"
+assert window.Rectangle.distance({'x': 0, 'y': 0}, {'x': 3, 'y': 4}) == 5
+assert window.Rectangle.named() == "Rectangle"
+assert window.Rectangle.kind() == "Rectangle"
+assert window.Rectangle is window.Rectangle
+assert window.isRectangle(window.Rectangle)
+assert window.eval('(function (x) { return x })')(window.Rectangle) is \
+    window.Rectangle
+window.Rectangle.displayName = "Rect"
+assert window.Rectangle.named() == "Rect"
+window.Rectangle.displayName = "Rectangle"
+
 # issue 1696
 window.jsFunction1696('asdf'.isupper)
 

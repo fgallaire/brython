@@ -241,6 +241,12 @@ var jsobj2pyobj = $B.jsobj2pyobj = function(jsobj, _this) {
         if (jsobj.ob_type !== undefined) {
             return jsobj
         }
+        // A Javascript class Python made a class of, read off an object, is
+        // that class again by any way back, as a value Javascript returns
+        var known_class = JS_CLASSES.get(jsobj)
+        if (known_class !== undefined) {
+            return known_class
+        }
         // transform Python arguments to equivalent JS arguments
         _this = _this === undefined ? null : _this
 
@@ -583,10 +589,28 @@ $B.JSClass.tp_getattro = function(self, attr) {
     if (res !== $B.NULL) {
         return res
     }
-    if (! self.js_class.hasOwnProperty(attr)) {
+    // A static of the Javascript class, inherited or its own, is called on
+    // the class, as JSFunction calls the members of a function
+    if (self.js_class[attr] === undefined) {
         return $B.NULL
     }
-    return jsobj2pyobj(self.js_class[attr], self.jsobj)
+    return jsobj2pyobj(self.js_class[attr], self.js_class)
+}
+
+$B.JSClass.tp_setattro = function(self, attr, value) {
+    // The class made of a Javascript class writes a name its dictionary does
+    // not hold on the Javascript class, where its statics are read; a
+    // subclass defined in Python keeps its attributes
+    if (JS_CLASSES.get(self.js_class) !== self ||
+            $B.search_in_mro(self, attr, $B.NULL) !== $B.NULL) {
+        return _b_.type.tp_setattro(self, attr, value)
+    }
+    if (value === $B.NULL) {
+        delete self.js_class[attr]
+    } else {
+        self.js_class[attr] = pyobj2jsobj(value)
+    }
+    return _b_.None
 }
 
 $B.JSClass.tp_new = function(cls, args, kw) {
@@ -595,8 +619,16 @@ $B.JSClass.tp_new = function(cls, args, kw) {
     return kls
 }
 
+// One Python class for each Javascript class, so that two reads of a class
+// are the same object
+const JS_CLASSES = new WeakMap()
+
 function jsclass2pyclass(js_class) {
     // Create a Python class based on a Javascript class
+    var known = JS_CLASSES.get(js_class)
+    if (known !== undefined) {
+        return known
+    }
     var cls = {
         ob_type: $B.JSClass,
         tp_bases: [],
@@ -633,6 +665,9 @@ function jsclass2pyclass(js_class) {
     $B.make_new(cls)
     $B.make_init(cls)
     $B.make_setattr(cls)
+    // Passed to Javascript, the class is the Javascript class
+    cls[JSOBJ] = js_class
+    JS_CLASSES.set(js_class, cls)
     return cls
 }
 
