@@ -1739,10 +1739,17 @@ $B.ast.BoolOp.prototype.to_js = function(scopes) {
 
 }
 
+// the loops "break" and "continue" belong to; "async for" is compiled by the
+// code of "for" without being an instance of it
+function is_loop(ast) {
+    return ast instanceof $B.ast.For ||
+        ast instanceof $B.ast.AsyncFor ||
+        ast instanceof $B.ast.While
+}
+
 function in_loop(scopes) {
     for (var scope of scopes.slice().reverse()) {
-        if(scope.ast instanceof $B.ast.For ||
-                scope.ast instanceof $B.ast.While){
+        if (is_loop(scope.ast)) {
             return true
         }
     }
@@ -1755,8 +1762,7 @@ $B.ast.Break.prototype.to_js = function(scopes) {
     }
     var js = ''
     for (var scope of scopes.slice().reverse()) {
-        if(scope.ast instanceof $B.ast.For ||
-                scope.ast instanceof $B.ast.While){
+        if (is_loop(scope.ast)) {
             js += prefix + `no_break_${scope.id} = false\n`
             break
         }

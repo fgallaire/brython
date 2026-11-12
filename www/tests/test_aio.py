@@ -457,3 +457,31 @@ async def test_aclose():
     print("aclose test ok")
 
 aio.run(test_aclose())
+
+# "break" and "continue" in an "async for", which leave the "else" of a loop
+# around it to that loop
+async def count_to(n):
+    for k in range(n):
+        yield k
+
+async def test_async_for_break():
+    got = []
+    async for k in count_to(5):
+        if k == 1:
+            continue
+        if k == 3:
+            break
+        got.append(k)
+    async_tester.assertEqual(got, [0, 2])
+    pairs = []
+    for i in range(2):
+        async for k in count_to(5):
+            if k == 1:
+                break
+            pairs.append((i, k))
+    else:
+        pairs.append("else")
+    async_tester.assertEqual(pairs, [(0, 0), (1, 0), "else"])
+    print("async for break test ok")
+
+aio.run(test_async_for_break())
