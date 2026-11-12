@@ -151,6 +151,10 @@ assert r.height == 3
 assert r.width == 4
 assert r.surface() == 12
 
+# an instance of a Javascript class called from Python reads its members
+assert window.Rectangle(3, 4).surface() == 12
+assert window.Rectangle(3, 4).height == 3
+
 class Square(window.Square):
   pass
 

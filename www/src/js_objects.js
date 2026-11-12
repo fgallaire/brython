@@ -625,6 +625,7 @@ function jsclass2pyclass(js_class) {
             return jsobj2pyobj(self.jsobj[attr], self.jsobj)
         }
     )
+    $B.make_getattr(cls)
     $B.set_to_dict(cls, '__setattr__',
         function(self, attr, value) {
             self.jsobj[attr] = pyobj2jsobj(value)
