@@ -314,6 +314,18 @@ assert window.func_returns_null() is javascript.NULL
 assert window.func_returns_undefined() is javascript.UNDEFINED
 assert window.func_returns_nothing() is javascript.UNDEFINED
 
+# a keyword argument refused to a Javascript function writes nothing on the
+# console
+logged = []
+saved_log = window.console.log
+window.console.log = lambda *args: logged.append(args)
+try:
+    window.func_returns_nothing(a=1)
+except TypeError:
+    pass
+window.console.log = saved_log
+assert logged == []
+
 assert window.obj_with_getters._null is javascript.NULL
 assert window.obj_with_getters._undefined is javascript.UNDEFINED
 
