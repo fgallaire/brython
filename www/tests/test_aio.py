@@ -457,3 +457,38 @@ async def test_aclose():
     print("aclose test ok")
 
 aio.run(test_aclose())
+
+# athrow() gives the value of the next "yield", as asend() does
+async def catching():
+    try:
+        yield 1
+    except KeyError:
+        yield "caught"
+    yield "after"
+
+async def returning():
+    try:
+        yield 1
+    except KeyError:
+        return
+
+async def test_athrow_value():
+    g = catching()
+    async_tester.assertEqual(await anext(g), 1)
+    async_tester.assertEqual(await g.athrow(KeyError("k")), "caught")
+    async_tester.assertEqual(await anext(g), "after")
+    try:
+        await g.athrow(KeyError("k"))
+        raise AssertionError("expected KeyError")
+    except KeyError:
+        pass
+    g = returning()
+    await anext(g)
+    try:
+        await g.athrow(KeyError("k"))
+        raise AssertionError("expected StopAsyncIteration")
+    except StopAsyncIteration:
+        pass
+    print("athrow test ok")
+
+aio.run(test_athrow_value())

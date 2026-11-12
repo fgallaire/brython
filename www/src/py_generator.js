@@ -431,8 +431,21 @@ async_generator_funcs.athrow = async function(self, type, value, traceback) {
     if (self.$frame) {
         $B.frame_obj = $B.push_frame(self.$frame)
     }
-    await gen.throw(value)
+    try {
+        var res = await gen.throw(value)
+    } catch (err) {
+        gen.$finished = true
+        $B.frame_obj = save_frame_obj
+        throw err
+    }
     $B.frame_obj = save_frame_obj
+    // like asend(), the value of the next "yield", or StopAsyncIteration if
+    // the generator returns
+    if (res.done || $B.exact_type(res.value, $GeneratorReturn)) {
+        gen.$finished = true
+        $B.RAISE(_b_.StopAsyncIteration)
+    }
+    return res.value
 }
 
 $B.async_generator.tp_methods = ["asend", "athrow", "aclose", "__sizeof__"]
