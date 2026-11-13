@@ -450,6 +450,30 @@ m = window.Map.new()
 m.set(x, 42)
 assert m.get(x) == 42
 
+# a Javascript class read off an object, called, constructs the Javascript
+# object, as "new" does, an instance of the class Python made of it; a class
+# that extends it is its subclass; a class derived in Python stays Python's
+made = window.eval('(function () { class Point { constructor(x, y) { ' +
+    'this.given = arguments.length; this.x = x } } ' +
+    'class Child extends Point {} return {Point, Child} })()')
+Point, Child = made.Point, made.Child
+point = Point(3, 4)
+assert window.JSON.stringify(point) == '{"given":2,"x":3}'
+assert window.eval('(function (made, p) { return p instanceof made.Point })')(
+    made, point)
+assert isinstance(point, Point)
+assert isinstance(Child.new(1, 2), Point)
+assert not isinstance(Point.new(1, 2), Child)
+assert issubclass(Child, Point)
+assert not issubclass(Point, Child)
+
+class Derived(Point):
+    pass
+
+derived = Derived(5, 6)
+assert isinstance(derived, Derived) and isinstance(derived, Point)
+assert derived.x == 5
+
 # issue 2420
 jsObj2420 = window.jsObj2420
 jsObj2420.item = {'sub': [], 'a': 8}

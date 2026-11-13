@@ -595,6 +595,34 @@ $B.JSClass.tp_new = function(cls, args, kw) {
     return kls
 }
 
+// The class made of a Javascript class, not one derived from it in Python
+function made_of_js(cls) {
+    return cls?.ob_type === $B.JSClass && cls.tp_bases.length == 0
+}
+
+var JSClass_funcs = $B.JSClass.tp_funcs = {}
+
+// An instance of the Javascript class, made by "new" or by calling the class,
+// is an instance of the class Python made of it, as "instanceof" tells, and a
+// class made of a Javascript class that extends it is a subclass of it
+JSClass_funcs.__instancecheck__ = function(cls, instance) {
+    if (made_of_js(cls) && instance !== null && typeof instance == 'object' &&
+            instance.ob_type === undefined) {
+        return instance instanceof cls.js_class
+    }
+    return _b_.type.tp_funcs.__instancecheck__(cls, instance)
+}
+
+JSClass_funcs.__subclasscheck__ = function(cls, subclass) {
+    if (made_of_js(cls) && made_of_js(subclass)) {
+        return subclass.js_class === cls.js_class ||
+            subclass.js_class.prototype instanceof cls.js_class
+    }
+    return _b_.type.tp_funcs.__subclasscheck__(cls, subclass)
+}
+
+$B.JSClass.tp_methods = ["__instancecheck__", "__subclasscheck__"]
+
 function jsclass2pyclass(js_class) {
     // Create a Python class based on a Javascript class
     var cls = {
@@ -608,6 +636,22 @@ function jsclass2pyclass(js_class) {
     cls.tp_mro = $B.make_mro(cls)
     $B.set_to_dict(cls, '__new__',
         function(klass, ...args) {
+            if (klass === cls) {
+                // the class called constructs the Javascript object, as
+                // "new" does: a Python object holding it was no instance
+                // Javascript knew, nor one Python could iterate or compare.
+                // The keywords of the call, which no Javascript class takes,
+                // are not one of its arguments
+                var keywords = args[args.length - 1]?.[$B.KW]
+                if (keywords !== undefined) {
+                    if (! $B.keyword_is_empty(keywords)) {
+                        $B.RAISE(_b_.TypeError,
+                            "A Javascript function can't take keyword arguments")
+                    }
+                    args = args.slice(0, -1)
+                }
+                return $B.JSClass.tp_getattro(cls, 'new')(...args)
+            }
             var res = {
                 ob_type: klass
             }
