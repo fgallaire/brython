@@ -498,7 +498,7 @@
         Date: globalThis.Date, // && $B.jsobj2pyobj(self.Date),
         extends: function(js_constr) {
             if((!js_constr.$js_func) ||
-                    ! js_constr.$js_func.toString().startsWith('class ')){
+                    ! $B.is_js_class(js_constr.$js_func)){
                 console.log(js_constr)
                 $B.RAISE(_b_.TypeError,
                     'argument of extend must be a Javascript class')

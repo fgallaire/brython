@@ -419,6 +419,16 @@ aio.run(call_js_async())
 pydict = window.nestedJSObj.to_dict()
 assert pydict == {'e': {'a': 1, 'b': 2}, 'f': {'c': 3, 'd': 4}}
 
+# a class is a class however it is written, an anonymous one as a minifier
+# writes it, "class{", among them; a method named "class" is no class
+written = window.eval('({Spaced: class Spaced {}, Packed: class{}, ' +
+    'Nameless: (0, class{}), Lined: class\nLined {}, ' +
+    'method: {class() {}}["class"]})')
+for name in ["Spaced", "Packed", "Nameless", "Lined"]:
+    assert type(getattr(written, name)).__name__ == "JSClass", name
+assert type(written.method).__name__ != "JSClass"
+assert written.Nameless.__name__ == ""
+
 # issue 2371
 import browser
 a = '{"num":1, "val":2.3}'

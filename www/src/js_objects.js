@@ -595,6 +595,13 @@ $B.JSClass.tp_new = function(cls, args, kw) {
     return kls
 }
 
+// A function written as a class, "class Name {" or "class{" as a minifier
+// writes an anonymous one, and not a method named "class"
+$B.is_js_class = function(func) {
+    return typeof func == 'function' &&
+        /^class[\s{]/.test(Function.prototype.toString.call(func))
+}
+
 function jsclass2pyclass(js_class) {
     // Create a Python class based on a Javascript class
     var cls = {
@@ -871,8 +878,7 @@ $B.JSObj.tp_getattro = function(_self, attr) {
     }
     if(js_attr !== null &&
             js_attr.toString &&
-            typeof js_attr == 'function' &&
-            Function.prototype.toString.call(js_attr).startsWith('class ')){
+            $B.is_js_class(js_attr)){
         // Javascript class
         return jsclass2pyclass(js_attr)
     } else if (typeof js_attr === 'function') {
@@ -994,8 +1000,7 @@ JSObj_funcs.__getattr__ = function(self, attr) {
     }
     if(js_attr !== null && js_attr !== undefined &&
             js_attr.toString &&
-            typeof js_attr == 'function' &&
-            Function.prototype.toString.call(js_attr).startsWith('class ')){
+            $B.is_js_class(js_attr)){
         // Javascript class
         return jsclass2pyclass(js_attr)
     } else if (typeof js_attr === 'function') {
