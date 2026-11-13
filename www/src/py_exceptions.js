@@ -21,11 +21,21 @@ function foreign(exc) {
 // The cause of a raise: a Javascript value is the JavascriptError that holds
 // it, as an "except" sees it
 function cause_of(cause) {
-    if (cause === undefined) {
+    if (cause === undefined || cause === _b_.None) {
         return _b_.None
     }
-    return cause !== null && typeof cause == 'object' && foreign(cause) ?
-        $B.exception(cause) : cause
+    if (cause !== null && typeof cause == 'object' && foreign(cause)) {
+        return $B.exception(cause)
+    }
+    // otherwise an exception, or a class of them, instantiated, as CPython
+    // takes a cause
+    if ($B.$isinstance(cause, _b_.BaseException)) {
+        return cause
+    }
+    if ($B.is_type(cause) && _b_.issubclass(cause, _b_.BaseException)) {
+        return $B.$call(cause)
+    }
+    $B.RAISE(_b_.TypeError, "exception causes must derive from BaseException")
 }
 
 // The JavascriptError a value Javascript threw is, in every frame it goes

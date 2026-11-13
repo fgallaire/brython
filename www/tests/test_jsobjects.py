@@ -680,4 +680,17 @@ try:
 except ValueError as exc:
     assert isinstance(exc.__cause__, JavascriptError)
 
+# any other cause is an exception, or a class of them, which is instantiated
+try:
+    raise ValueError("outer") from KeyError
+except ValueError as exc:
+    assert type(exc.__cause__) is KeyError
+for cause in [3, "text", {"a": 1}]:
+    try:
+        raise ValueError("outer") from cause
+    except TypeError as exc:
+        assert str(exc) == "exception causes must derive from BaseException"
+    else:
+        raise AssertionError("not refused")
+
 print("all tests ok...")
