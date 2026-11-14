@@ -1,12 +1,20 @@
 """Javascript minifier"""
 import re
 
+def last_char(res):
+    i = len(res) - 1
+    while i >= 0 and res[i] in ' \n':
+        i -= 1
+    return res[i] if i >= 0 else ''
+
 def minify(src):
 
     _res, pos = '', 0
     while pos < len(src):
         if src[pos] in ('"', "'", '`') or \
-                (src[pos] == '/' and src[pos - 1] == '('):
+                (src[pos] == '/' and src[pos + 1:pos + 2] not in ('/', '*')
+                    and last_char(_res) in '(,=:[!&|?{;'):
+            # a regular expression after an operator, whose spaces are kept
             # the end of the string is the next quote if it is not
             # after an odd number of backslashes
             start = pos
