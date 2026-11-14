@@ -962,6 +962,13 @@ assert nan is nan
 # PR 3011
 assert format(2.5, '.0f') == '2'
 
+# the + and space signs of a float, whatever its type, zero included
+assert format(1.5, '+g') == '+1.5'
+assert format(1.5, ' e') == ' 1.500000e+00'
+assert format(0.0, '+.1f') == '+0.0'
+assert format(-0.0, '+.1f') == '-0.0'
+assert format(-1.5, '+g') == '-1.5'
+
 # PR 3225
 assert round(1234, -2) == 1200
 assert round(2.675, 2) == 2.67

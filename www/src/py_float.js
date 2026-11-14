@@ -142,6 +142,14 @@ function preformat(self, fmt) {
     if (special) {
         return format_sign(value, fmt) + special
     }
+    if (fmt.sign == "+" || fmt.sign == " ") {
+        // whatever path the type takes, zero included
+        let sign = fmt.sign
+        fmt.sign = undefined
+        let res = preformat(self, fmt)
+        fmt.sign = sign
+        return value < 0 || Object.is(value, -0) ? res : sign + res
+    }
     if (fmt.precision === undefined && fmt.type !== undefined) {
         fmt.precision = 6
     }
@@ -257,11 +265,6 @@ function preformat(self, fmt) {
             } else {
                 res = res.substr(0, res.length - 1)
             }
-        }
-    }
-    if (fmt.sign !== undefined) {
-        if ((fmt.sign == " " || fmt.sign == "+" ) && value > 0) {
-            res = fmt.sign + res
         }
     }
     if (fmt.type == "%") {
