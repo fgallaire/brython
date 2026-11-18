@@ -587,4 +587,17 @@ window.L = L
 window.eval(js_src)
 assert type(window.A) is list
 
+# each iter() of a Javascript iterable is a new iterator, as "for...of" asks
+# one for each loop
+values = window.Set.new([1, 2])
+pairs = []
+for a in values:
+    for b in values:
+        pairs.append((a, b))
+assert pairs == [(1, 1), (1, 2), (2, 1), (2, 2)]
+first, second = iter(values), iter(values)
+assert [next(first), next(second), next(first)] == [1, 1, 2]
+assert iter(values) is not values
+assert 2 in values
+
 print("all tests ok...")

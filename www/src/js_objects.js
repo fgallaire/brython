@@ -1132,9 +1132,16 @@ $B.IterableJSObj.sq_contains = function(self, key) {
     }
 }
 
+// iter() is the iterator its [Symbol.iterator] method makes, a new one at each
+// call, as "for...of" asks one for each loop: an object that is its own
+// iterator, a generator, is itself
 $B.IterableJSObj.tp_iter = function(self) {
-    self.it = self[Symbol.iterator]()
-    return self
+    var it = self[Symbol.iterator]()
+    if (it === self) {
+        self.it = it
+        return self
+    }
+    return {ob_type: js_array_iterator, it}
 }
 
 $B.IterableJSObj.sq_length = function(self) {
