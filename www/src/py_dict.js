@@ -456,7 +456,7 @@ var $copy_dict = function(left, right) {
     right[VERSION] = right[VERSION] || 0
     var right_version = right[VERSION]
     if (! right[KEYS]) {
-        if (! left[KEYS]) {
+        if (! left[KEYS] && ! adds_array_index(left, right)) {
             for (let key in right) {
                 left[key] = right[key]
                 if (left[$B.JSOBJ]) {
@@ -690,7 +690,7 @@ function dict_update_arg(self, arg) {
         $copy_dict(self, arg)
     } else if ($B.get_class(arg) === $B.JSObj) {
         for (let key in arg) {
-            $B.str_dict_set(self, key, $B.jsobj2pyobj(arg[key]))
+            dict.$setitem(self, key, $B.jsobj2pyobj(arg[key]))
         }
     } else if ($B.$getattr(arg, "keys", $B.NULL) !== $B.NULL) {
         for (let key of $B.make_js_iterator($B.$call($B.$getattr(arg, "keys")))) {
@@ -925,13 +925,38 @@ dict.$iter_items_reversed = function*(d){
 // reaches the accessor on Object.prototype, so the key never becomes an own
 // property and the value becomes the dictionary's own prototype instead. The
 // entry is lost, and `d["__proto__"]` raises KeyError on a key that was written.
-// It goes to the hash table, exactly as a string parsed as a negative integer
-// already does (issue 2256).
+// It goes to the hash table, exactly as a new string that reads as an array
+// index does (issue 2256).
 //
 // Asked in one place because four sites ask it: setting, reading, `setdefault`,
 // and the conversion itself.
 function fast_string_key(key) {
     return typeof key == 'string' && key !== '__proto__'
+}
+
+// Whether a string reads as an array index, "0" to "4294967294": Javascript
+// enumerates such a property before the others, in numeric order, so a new one
+// sends the dictionary to the hash table, which keeps the insertion order.
+function array_index(key) {
+    var index = Number(key) >>> 0
+    return index !== 4294967295 && String(index) === key
+}
+
+$B.array_index = array_index
+
+// Whether copying right into left adds a key that reads as an array index. A
+// dictionary made from a Javascript object holds such keys as properties, and
+// Javascript enumerates them first, so looking at those is enough.
+function adds_array_index(left, right) {
+    for (let key in right) {
+        if (! array_index(key)) {
+            return false
+        }
+        if (! Object.hasOwn(left, key)) {
+            return true
+        }
+    }
+    return false
 }
 
 function convert_all_str(d) {
@@ -973,8 +998,7 @@ dict.$setitem = function(self, key, value, $hash, from_setdefault) {
     }
     if (! self[TABLE]) {
         if (fast_string_key(key)) {
-            var int = parseInt(key)
-            if (isNaN(int) || int >= 0) {
+            if (! (new_str_key && array_index(key))) {
                 if (new_str_key) {
                     self[VERSION] = self[VERSION] ?? 0
                     self[VERSION]++
@@ -982,9 +1006,11 @@ dict.$setitem = function(self, key, value, $hash, from_setdefault) {
                 self[key] = value
                 return _b_.None
             } else {
-                // string parsed as negative integer: insertion order
-                // not preserved (issue 2256)
+                // insertion order not preserved (issue 2256): the new key
+                // goes after the others
+                delete self[key]
                 convert_all_str(self)
+                self[key] = value
             }
         } else {
             convert_all_str(self)
@@ -1355,13 +1381,14 @@ dict_funcs.setdefault = function(self) {
     _default = _default === undefined ? _b_.None : _default
 
     if (! self[TABLE]) {
-        if (fast_string_key(key)) {
+        if (fast_string_key(key) && (Object.hasOwn(self, key) || ! array_index(key))) {
             if (! Object.hasOwn(self, key)) {
                 self[key] = _default
             }
             return self[key]
         } else {
-            // Non-string key, convert to regular dict
+            // Non-string key, or a new one that reads as an array index,
+            // convert to regular dict
             convert_all_str(self)
         }
     }

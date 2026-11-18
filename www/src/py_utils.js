@@ -298,13 +298,41 @@ $B.parse_args = function(args, fname, argcount, slots, arg_names, defaults,
     }
 
     if (kwarg) {
-        slots[kwarg] = _b_.dict.$from_js(extra_kw)
+        slots[kwarg] = kwargs_dict(extra_kw, kw)
     }
     if (vararg) {
         slots[vararg] = $B.fast_tuple(varargs)
     }
 
     return slots
+}
+
+// The order the keyword arguments were given in, which parse_kwargs() keeps
+// beside them once a name reads as an array index: an object enumerates those
+// first, in numeric order
+var KW_ORDER = Symbol('kw_order')
+
+function set_keyword(kwa, key, value) {
+    if (kwa[KW_ORDER] === undefined && $B.array_index(key)) {
+        kwa[KW_ORDER] = Object.keys(kwa)
+    }
+    kwa[key] = value
+    kwa[KW_ORDER]?.push(key)
+}
+
+// The keyword arguments of "kw" that "obj" holds, as a dict in that order
+function kwargs_dict(obj, kw = obj) {
+    var order = kw[KW_ORDER]
+    if (order === undefined) {
+        return _b_.dict.$from_js(obj)
+    }
+    var res = $B.empty_dict()
+    for (var key of order) {
+        if (Object.hasOwn(obj, key)) {
+            _b_.dict.$setitem(res, key, obj[key])
+        }
+    }
+    return res
 }
 
 $B.parse_kwargs = function(kw_args, fname) {
@@ -328,7 +356,7 @@ $B.parse_kwargs = function(kw_args, fname) {
                         `${fname}() got multiple values for keyword argument '${key}'`
                     )
                 } else {
-                    kwa[key] = entry.value
+                    set_keyword(kwa, key, entry.value)
                 }
             }
         } else {
@@ -361,7 +389,7 @@ $B.parse_kwargs = function(kw_args, fname) {
                             `'${$B.class_name(kw_arg)}' object is not subscriptable`)
                     }
                 }
-                kwa[k] = $B.$getitem1(kw_arg, k)
+                set_keyword(kwa, k, $B.$getitem1(kw_arg, k))
             }
         }
     }
@@ -509,9 +537,12 @@ $B.parse_args_kw = function(fname, args) {
     var last = args[args.length - 1]
     if (last?.[$B.KW]) {
         var kw = $B.parse_kwargs(last[$B.KW], fname)
-        kw[$B.OB_TYPE] = _b_.dict
         args = Array.from(args)
         args.pop()
+        if (kw[KW_ORDER] !== undefined) {
+            return [args, kwargs_dict(kw)]
+        }
+        kw[$B.OB_TYPE] = _b_.dict
         return [args, kw]
     }
     return [args, $B.empty_dict()]

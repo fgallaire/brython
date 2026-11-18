@@ -301,6 +301,47 @@ d = dict(t)
 
 assert list(d) == ['-1', '6', '7', '0']
 
+# string keys that read as integers keep their insertion order too
+assert list(dict(t[1:])) == ['6', '7', '0']
+assert list({"2025": 1, "2024": 2, "b": 3, "10": 4}) == ["2025", "2024", "b", "10"]
+
+d = {}
+d["b"] = 1
+d["10"] = 2
+d.setdefault("2", 3)
+assert list(d) == ["b", "10", "2"]
+assert d == {"b": 1, "10": 2, "2": 3}
+
+# and so do those that a Javascript object brings in
+from browser import window
+js_source = '{"c": 0, "10": 2}'
+assert list({"b": 1} | window.JSON.parse(js_source).to_dict()) == ["b", "10", "c"]
+d = {"b": 1}
+d.update(window.JSON.parse(js_source))
+assert list(d) == ["b", "10", "c"]
+d = {1: "a"}
+d.update(window.JSON.parse(js_source))
+assert list(d) == [1, "10", "c"]
+d = {"b": 1}
+d.update(window.JSON.parse('{"__proto__": 5}'))
+assert d["__proto__"] == 5
+
+# and so do the keyword arguments that a dict brings (PEP 468)
+def keywords(**kw):
+    return list(kw)
+
+assert keywords(**{"10": 1, "2": 2, "a": 3}) == ["10", "2", "a"]
+
+def keywords_after(a, /, b=0, **kw):
+    return list(kw)
+
+assert keywords_after(0, **{"10": 1, "2": 2, "a": 3}) == ["10", "2", "a"]
+assert list(dict(**{"10": 2, "2": 3})) == ["10", "2"]
+assert list(dict({"b": 1}, **{"10": 2, "2": 3})) == ["b", "10", "2"]
+d = {"b": 1}
+d.update(**{"10": 2, "2": 3})
+assert list(d) == ["b", "10", "2"]
+
 # a str key spelled like a method of JavaScript objects
 d = {"hasOwnProperty": 1}
 assert d["hasOwnProperty"] == 1
