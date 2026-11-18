@@ -457,3 +457,55 @@ async def test_aclose():
     print("aclose test ok")
 
 aio.run(test_aclose())
+
+# a Javascript object that "for await" walks is walked by "async for"
+from browser import window
+
+async def test_js_async_iterable():
+    got = []
+    async for value in window.js_async_halves(3):
+        got.append(value)
+    async_tester.assertEqual(got, [0, 0.5, 1])
+    got = []
+    async for value in window.js_async_object:
+        got.append(value)
+    async_tester.assertEqual(got, [0, 1])
+    got = []
+    async for value in window.js_async_bare:
+        got.append(value)
+    async_tester.assertEqual(got, [0, 1])
+    it = aiter(window.js_async_object)
+    async_tester.assertEqual(await anext(it), 0)
+    async_tester.assertEqual(await anext(it), 1)
+    async_tester.assertEqual(await anext(it, "end"), "end")
+    # left before its end, aclosing() lets the iterator go, as "for await"
+    # does: the "finally" of the generator runs
+    from contextlib import aclosing
+    closing = window.js_async_closing()
+    async with aclosing(closing):
+        async_tester.assertEqual(await anext(closing), 0)
+    async_tester.assertEqual(window.js_async_closed, True)
+    # each aiter() of an object that is not its own iterator is a new one, as
+    # "for await" asks one for each loop; an asynchronous generator is its own
+    pairs = []
+    async for a in window.js_async_object:
+        async for b in window.js_async_object:
+            pairs.append((a, b))
+    async_tester.assertEqual(pairs, [(0, 0), (0, 1), (1, 0), (1, 1)])
+    first = aiter(window.js_async_object)
+    second = aiter(window.js_async_object)
+    async_tester.assertEqual(
+        [await anext(first), await anext(second), await anext(first)],
+        [0, 0, 1])
+    async_tester.assertFalse(first is window.js_async_object)
+    generator = window.js_async_halves(2)
+    async_tester.assertTrue(aiter(generator) is generator)
+    # the stream a reader of it locks is let go by its aclose()
+    stream = window.js_async_stream()
+    async_tester.assertEqual(await anext(aiter(stream)), 'a')
+    async_tester.assertEqual(stream.locked, True)
+    await stream.aclose()
+    async_tester.assertEqual(stream.locked, False)
+    print("Javascript async iterable test ok")
+
+aio.run(test_js_async_iterable())

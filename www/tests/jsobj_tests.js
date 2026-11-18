@@ -15,6 +15,47 @@ function test_none(attr) {
 
 a_table = {headers:[{name:"test",type:"string", value: 8, s: "a"}],rows:[]}
 
+// an asynchronous generator, and an object with a [Symbol.asyncIterator]
+// method, which "for await" walks
+async function* js_async_halves(n){
+    for(var i = 0; i < n; i++){
+        yield i / 2
+    }
+}
+js_async_object = {
+    [Symbol.asyncIterator](){
+        var i = 0
+        return {
+            next: async function(){
+                return i < 2 ? {value: i++, done: false} : {value: undefined, done: true}
+            }
+        }
+    }
+}
+// and one made without a prototype
+js_async_bare = Object.create(null)
+js_async_bare[Symbol.asyncIterator] = js_async_object[Symbol.asyncIterator]
+// a ReadableStream of two chunks, which a loop over it locks
+function js_async_stream(){
+    return new ReadableStream({
+        start(controller){
+            controller.enqueue('a')
+            controller.enqueue('b')
+            controller.close()
+        }
+    })
+}
+// an asynchronous generator that tells when its "finally" runs
+js_async_closed = false
+async function* js_async_closing(){
+    try {
+        yield 0
+        yield 1
+    } finally {
+        js_async_closed = true
+    }
+}
+
 class JS_A {
 }
 

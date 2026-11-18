@@ -1154,6 +1154,83 @@ $B.IterableJSObj.tp_iternext = function*(self){
 
 $B.set_func_names($B.IterableJSObj, 'builtins')
 
+// A Javascript object that "for await" walks, an asynchronous generator, a
+// ReadableStream or an object with a [Symbol.asyncIterator] method, is walked
+// by "async for", each value converted as an iterable's is
+$B.AsyncIterableJSObj = $B.make_builtin_class('AsyncIterableJavascriptObject', [$B.JSObj])
+
+// The iterator last made for each object, which anext() of the object itself
+// and its aclose() read
+var js_async_iterators = new WeakMap()
+
+function js_async_next(iterator) {
+    return iterator.next().then(function(step) {
+        if (step.done) {
+            $B.RAISE(_b_.StopAsyncIteration)
+        }
+        return jsobj2pyobj(step.value)
+    })
+}
+
+// aclose(), which contextlib.aclosing() calls, lets the iterator go as "for
+// await" does when it leaves a loop early: a ReadableStream is released, the
+// "finally" of an asynchronous generator runs
+function js_async_close(iterator) {
+    if (iterator === undefined || typeof iterator.return != 'function') {
+        return Promise.resolve(_b_.None)
+    }
+    return iterator.return().then(() => _b_.None)
+}
+
+// aiter() is the iterator its [Symbol.asyncIterator] method makes, a new one
+// at each call, as "for await" asks one for each loop: an object that is its
+// own iterator, an asynchronous generator, is itself
+$B.AsyncIterableJSObj.am_aiter = function(self) {
+    var iterator = self[Symbol.asyncIterator]()
+    js_async_iterators.set(self, iterator)
+    return iterator === self ? self : {ob_type: js_async_iterator, iterator}
+}
+
+$B.AsyncIterableJSObj.am_anext = function(self) {
+    var iterator = js_async_iterators.get(self)
+    if (iterator === undefined) {
+        // anext() can be called without aiter() first
+        iterator = self[Symbol.asyncIterator]()
+        js_async_iterators.set(self, iterator)
+    }
+    return js_async_next(iterator)
+}
+
+$B.AsyncIterableJSObj.tp_funcs = {
+    aclose: function(self) {
+        return js_async_close(js_async_iterators.get(self))
+    }
+}
+
+$B.AsyncIterableJSObj.tp_methods = ['aclose']
+
+$B.set_func_names($B.AsyncIterableJSObj, 'builtins')
+
+var js_async_iterator = $B.make_builtin_class('AsyncJavascriptIterator')
+
+js_async_iterator.am_aiter = function(self) {
+    return self
+}
+
+js_async_iterator.am_anext = function(self) {
+    return js_async_next(self.iterator)
+}
+
+js_async_iterator.tp_funcs = {
+    aclose: function(self) {
+        return js_async_close(self.iterator)
+    }
+}
+
+js_async_iterator.tp_methods = ['aclose']
+
+$B.set_func_names(js_async_iterator, 'builtins')
+
 /* js_array_iterator */
 
 var js_array_iterator = $B.make_builtin_class('JSArray_iterator')
@@ -1459,10 +1536,15 @@ $B.get_jsobj_class = function(obj) {
     }
     var proto = Object.getPrototypeOf(obj)
     if (proto === null) {
-        return $B.JSObj
+        // an object made without a prototype may still be walked by "for
+        // await"
+        return typeof obj[Symbol.asyncIterator] == 'function' ?
+            $B.AsyncIterableJSObj : $B.JSObj
     }
     if (proto[Symbol.iterator] !== undefined) {
         return $B.IterableJSObj
+    } else if (typeof obj[Symbol.asyncIterator] == 'function') {
+        return $B.AsyncIterableJSObj
     } else if (Object.getOwnPropertyNames(proto).indexOf('length') > -1) {
         return $B.SizedJSObj
     }
