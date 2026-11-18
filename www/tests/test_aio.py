@@ -457,3 +457,41 @@ async def test_aclose():
     print("aclose test ok")
 
 aio.run(test_aclose())
+
+# an "async for" in a comprehension awaits each value, as the statement does
+async def agen_comprehension(n):
+    for i in range(n):
+        yield i
+
+async def test_async_comprehensions():
+    async_tester.assertEqual([x async for x in agen_comprehension(3)], [0, 1, 2])
+    async_tester.assertEqual({x async for x in agen_comprehension(3)}, {0, 1, 2})
+    async_tester.assertEqual({x: x * 2 async for x in agen_comprehension(3)},
+                             {0: 0, 1: 2, 2: 4})
+    async_tester.assertEqual([x async for x in agen_comprehension(5) if x % 2],
+                             [1, 3])
+    async_tester.assertEqual(
+        [[x async for x in agen_comprehension(2)] for _ in range(2)],
+        [[0, 1], [0, 1]])
+    async_tester.assertEqual(
+        [(a, b) for a in range(2) async for b in agen_comprehension(2)],
+        [(0, 0), (0, 1), (1, 0), (1, 1)])
+    # a generator expression that awaits is an asynchronous generator
+    gen = (x * 10 async for x in agen_comprehension(3))
+    async_tester.assertEqual(type(gen).__name__, "async_generator")
+    async_tester.assertEqual([y async for y in gen], [0, 10, 20])
+    print("async comprehensions test ok")
+
+aio.run(test_async_comprehensions())
+
+# outside an asynchronous function, only a generator expression may await
+for src in ["def f():\n    return [x async for x in g()]",
+            "def f():\n    return [[x async for x in g()] for y in z]"]:
+    try:
+        exec(src)
+        raise AssertionError("expected SyntaxError")
+    except SyntaxError as exc:
+        assert exc.msg == ("asynchronous comprehension outside of an "
+                           "asynchronous function"), exc.msg
+exec("def f():\n    return (x async for x in g())")
+exec("def f():\n    return (await x for x in y)")

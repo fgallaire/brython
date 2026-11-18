@@ -878,14 +878,61 @@ function init_comprehension(comp, scopes) {
         return init_genexpr(comp, scopes)
     }
     // Code common to comprehensions
+    if (comp.ast.generators[0].is_async) {
+        return prefix + `var aiter_${comp.id} = ${aiter_of('expr')}\n`
+    }
     return prefix + `var next_func_${comp.id} = $B.make_js_iterator(expr, frame, ${comp.ast.lineno})\n`
+}
+
+// The asynchronous iterator of an "async for" of a comprehension, as the
+// statement gets it
+function aiter_of(iterable) {
+    return `$B.$call($B.$getattr(_b_.type.$factory(${iterable}), "__aiter__"), ${iterable})`
+}
+
+// The head of the loop of a generator of a comprehension: an "async for"
+// awaits each value, as the statement does
+function comprehension_loop(id, is_async) {
+    if (! is_async) {
+        return prefix + `for (var next_${id} of next_func_${id}) {\n`
+    }
+    return prefix + `while (true) {\n` +
+           prefix + tab + `try {\n` +
+           prefix + tab + tab + `var next_${id} = await $B.promise($B.$call(_b_.anext, aiter_${id}))\n` +
+           prefix + tab + `} catch (err) {\n` +
+           prefix + tab + tab + `if ($B.is_exc(err, [_b_.StopAsyncIteration])) {\n` +
+           prefix + tab + tab + tab + `break\n` +
+           prefix + tab + tab + `}\n` +
+           prefix + tab + tab + `throw err\n` +
+           prefix + tab + `}\n`
+}
+
+// A comprehension that awaits, by an "await" or an "async for", is awaited
+// where it is written: in the comprehension that holds it, which awaits in
+// turn, or in an asynchronous function
+function await_comprehension(ast, scopes) {
+    var ix = scopes.length - 1
+    while (scopes[ix].parent) {
+        ix--
+    }
+    var holder = scopes[ix].ast
+    if (holder instanceof $B.ast.ListComp || holder instanceof $B.ast.SetComp ||
+            holder instanceof $B.ast.DictComp ||
+            holder instanceof $B.ast.GeneratorExp) {
+        scopes[ix].has_await = true
+    } else if (holder instanceof $B.ast.AsyncFunctionDef) {
+        scopes[ix].has_await = true
+    } else {
+        compiler_error(ast,
+            'asynchronous comprehension outside of an asynchronous function')
+    }
 }
 
 function init_genexpr(comp, scopes) {
     var varnames = Object.keys(comp.varnames || {}).map(x => `'${x}'`).join(', ')
     return prefix + `var ${comp.locals_name} = {},\n` +
            prefix + tab + tab + `locals = ${comp.locals_name}\n` +
-           prefix + `locals['.0'] = _b_.iter(expr)\n` +
+           prefix + `locals['.0'] = ${comp.ast.generators[0].is_async ? aiter_of('expr') : '_b_.iter(expr)'}\n` +
            prefix + `var frame = ["<${comp.type.toLowerCase()}>", ${comp.locals_name}, ` +
                `${JSON.stringify(comp.module_name)}, ${comp.globals_name}]\n` +
            prefix + `frame.$has_generators = true\n` +
@@ -939,7 +986,7 @@ function make_comp(scopes) {
     var first = this.generators[0]
     js += prefix + `try {\n`
     indent()
-    js += prefix + `for (var next_${id} of next_func_${id}) {\n`
+    js += comprehension_loop(id, first.is_async)
     indent()
     // assign result of iteration to target
     var name = new $B.ast.Name(`next_${id}`, new $B.ast.Load())
@@ -983,7 +1030,8 @@ function make_comp(scopes) {
         }
     }
 
-    var has_await = own_scope.has_await
+    var has_await = own_scope.has_await ||
+        this.generators.some(generator => generator.is_async)
 
     // If the element has an "await", attribute has_await is set to the scope
     // Use it to make the function aync or not
@@ -1042,6 +1090,9 @@ function make_comp(scopes) {
     scopes.pop()
     // With an "await", the comprehension is an async function: its result is
     // awaited where the comprehension is written
+    if (has_await) {
+        await_comprehension(this, scopes)
+    }
     return has_await ? `(await ${js})` : js}
 
 function init_scopes(type, scopes) {
@@ -1657,6 +1708,10 @@ $B.ast.Await.prototype.to_js = function(scopes) {
             scopes[ix].ast instanceof $B.ast.SetComp ||
             scopes[ix].ast instanceof $B.ast.GeneratorExp){
         scopes[ix].has_await = true
+        if (scopes[ix].ast instanceof $B.ast.GeneratorExp) {
+            // an asynchronous generator, which no one awaits
+            return `await $B.promise(${$B.js_from_ast(this.value, scopes)})`
+        }
         ix--
         // skip the blocks (if, for, try...) the comprehension is written in
         while (scopes[ix].parent) {
@@ -2069,8 +2124,11 @@ $B.ast.comprehension.prototype.to_js = function(scopes) {
     var id = make_id(),
         iter = $B.js_from_ast(this.iter, scopes)
 
-    var js = prefix + `var next_func_${id} = $B.make_js_iterator(${iter}, frame, ${this.lineno})\n` +
-             prefix + `for (var next_${id} of next_func_${id}) {\n`
+    var js = this.is_async ?
+        prefix + `var aiterable_${id} = ${iter},\n` +
+            prefix + tab + tab + `aiter_${id} = ${aiter_of(`aiterable_${id}`)}\n` :
+        prefix + `var next_func_${id} = $B.make_js_iterator(${iter}, frame, ${this.lineno})\n`
+    js += comprehension_loop(id, this.is_async)
     indent()
     // assign result of iteration to target
     var name = new $B.ast.Name(`next_${id}`, new $B.ast.Load())
@@ -3006,16 +3064,23 @@ $B.ast.GeneratorExp.prototype.to_js = function(scopes) {
         }
     }
 
-    var js = prefix + `var gen${id} = $B.generator.$factory(${has_await ? 'async ' : ''}function*(expr){\n`
+    // The factory of the generator, and whether it enters its frame, written
+    // once it is known whether it awaits: an asynchronous generator is given
+    // its frame at each step, as one an "async def" makes
+    var factory_prefix = prefix,
+        entered = `\u0001enter_frame_${id}\u0001`,
+        js = ''
 
     // special case for first generator
     var first = this.generators[0]
     indent()
-    js += prefix + `$B.enter_frame(frame, __file__, ${this.lineno})\n` +
-          prefix + `var next_func_${id} = $B.make_js_iterator(expr, frame, ${this.lineno})\n` +
-          prefix + `for (var next_${id} of next_func_${id}) {\n`
+    js += prefix + entered + '\n' +
+          (first.is_async ?
+              prefix + `var aiter_${id} = expr\n` :
+              prefix + `var next_func_${id} = $B.make_js_iterator(expr, frame, ${this.lineno})\n`) +
+          comprehension_loop(id, first.is_async)
     indent()
-    js += prefix + `$B.enter_frame(frame, __file__, ${this.lineno})\n`
+    js += prefix + entered + '\n'
     // assign result of iteration to target
     var name = new $B.ast.Name(`next_${id}`, new $B.ast.Load())
     copy_position(name, first_for.iter)
@@ -3048,15 +3113,20 @@ $B.ast.GeneratorExp.prototype.to_js = function(scopes) {
     }else{
         elt = $B.js_from_ast(this.elt, scopes)
     }
-    var has_await = comp_scope.has_await
+    var has_await = comp_scope.has_await ||
+        this.generators.some(generator => generator.is_async)
 
     // If the element has an "await", attribute has_await is set to the scope
-    // Use it to make the function aync or not
+    // Use it to make the function aync or not: an asynchronous generator
+    js = factory_prefix + `var gen${id} = ` +
+        (has_await ? '$B.async_generator.$factory(async ' : '$B.generator.$factory(') +
+        `function*(expr){\n` +
+        js.split(entered).join(has_await ? '' : `$B.enter_frame(frame, __file__, ${this.lineno})`)
+    var leave = has_await ? '' : '$B.leave_frame()\n'
     dedent()
 
     indent(3)
 
-    js += has_await ? prefix + 'var save_frame_obj = $B.frame_obj;\n' : ''
     js += prefix + `try{\n`
     indent()
     if(this.elt instanceof $B.ast.Starred){
@@ -3070,25 +3140,25 @@ $B.ast.GeneratorExp.prototype.to_js = function(scopes) {
     }
     dedent()
     js += prefix + `}catch(err){\n` +
-          (has_await ? prefix + tab + '$B.restore_frame_obj(save_frame_obj, locals)\n' : '') +
-          prefix + tab + `$B.leave_frame()\n` +
+          prefix + tab + leave +
           prefix + tab + `throw err\n` +
           prefix + `}\n`
     dedent()
-    js += (has_await ? prefix +'\n$B.restore_frame_obj(save_frame_obj, locals);' : '')
 
     for (var i = 0; i < nb_paren - 1; i++) {
         js += prefix + '}\n'
         dedent()
     }
-    js += prefix + '$B.leave_frame()\n'
+    js += prefix + leave
     dedent()
     js += prefix + '}\n'
-    js += prefix + '$B.leave_frame()\n'
+    js += prefix + leave
     js += prefix + '}, "<genexpr>")(locals[".0"])\n'
 
     scopes.pop()
-    var func = `${head}\n${js}\n` + prefix + `return gen${id}`
+    var func = `${head}\n${js}\n` +
+        (has_await ? prefix + `gen${id}.$frame = frame\n` : '') +
+        prefix + `return gen${id}`
     dedent()
     return prefix + `(function(expr) {\n${func}\n` +
            prefix + `})(${outmost_expr})\n`
